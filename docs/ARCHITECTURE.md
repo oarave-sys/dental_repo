@@ -197,6 +197,58 @@ ambiguous spans only**, and its outputs are stored as evidence with
 deterministic baseline. If the AI gateway is disabled or a provider is not PHI-approved,
 the pipeline completes in deterministic-only mode with a visible banner on the referral.
 
+### 4.5 Bulk intake — migrating referrals off a shared drive
+
+The practice's existing referrals live as files on a drive and will be dropped into the
+application in bulk. That is a first-class intake path, not an import script, and it
+inverts one assumption in the workflow: **the packet arrives before the referral record
+exists.**
+
+```
+DROP FOLDER  ──▶  intake_batch                     staff select files or a folder
+                     │
+                     ├─ per file: sha256 → dedupe against everything already ingested
+                     ├─ direct-to-storage upload (presigned, multipart, resumable)
+                     └─ enqueue at BACKLOG priority
+                              │
+                              ▼
+                  full pipeline (§4, stages 1-10)
+                              │
+                              ▼
+                  DRAFT REFERRAL + DRAFT PATIENT, every field marked "proposed"
+                              │
+                              ▼
+                  INTAKE REVIEW QUEUE  ──▶  staff confirm/correct  ──▶  referral created
+```
+
+**Document-first intake.** The pipeline proposes patient demographics, referring office and
+provider, payer, member ID, received date and diagnosis from the packet itself. Every
+proposed field carries its own evidence link and confidence, exactly like a diagnosis does,
+and **nothing is committed without human confirmation** — a bulk drop creates drafts in a
+review queue, never live referrals. One coordinator confirming a pre-filled draft in a few
+seconds is the whole value of this path.
+
+**Design decisions this forces:**
+
+| Concern | Approach |
+| --- | --- |
+| Hundreds of large PDFs through a server action | Won't work. Direct-to-storage presigned multipart uploads; the app issues credentials and records metadata only. This also keeps large PHI blobs off the app tier entirely. |
+| The same packet dropped twice | SHA-256 content hash, unique per organization. An exact re-drop is recognized and skipped, with the batch reporting it rather than silently creating a duplicate referral. |
+| Historical referrals | `received_at` is distinct from `uploaded_at` and is proposed from the fax header or the document date, not from the moment of upload. Otherwise a backlog migration would show 1,400 referrals received today and destroy every touch-time metric. |
+| Filenames carrying PHI | A configurable filename/folder parser can propose a patient name or date — and filenames are treated as PHI throughout: never logged, never in a URL, never in a job payload or an audit metadata value. |
+| One PDF containing several referrals | A fax spool is common on a shared drive. Packet-boundary detection (fax headers, cover sheets, demographic-page recurrence) proposes split points; a manual split tool in the viewer is the fallback, and it is the Phase 4 milestone I'd cut first if time is short. |
+| A backlog flooding the queue | Two priority lanes. Live referrals always preempt backlog items, so a 2,000-file migration never delays a fax that arrived this morning. Per-batch concurrency and a spend cap on any metered OCR or AI. |
+| Progress and failure | The batch view shows per-file state — queued, uploading, processing, needs review, duplicate, failed — with retry on the failures and a CSV export of anything that could not be read. |
+
+**Migration hygiene.** Moving files off a drive does not remove them from it. The runbook
+will state plainly that the source drive still holds PHI after migration and needs its own
+disposition decision — that is the practice's call, and it should be a deliberate one.
+
+**The next step, designed for but not built:** a small watched-folder agent that syncs a
+local directory continuously, so the drive becomes an ongoing intake channel rather than a
+one-time migration. The `intake_channel` field and the batch model exist so that agent has
+somewhere to land; §55 keeps it out of V1.
+
 ---
 
 ## 5. Deterministic triage-rules architecture
@@ -213,12 +265,15 @@ export function evaluateTriage(
 export interface TriageFacts {
   diagnosisCandidates: Array<{
     categoryId: string;
+    rank: number;                    // 1 = primary. Ranked, never a flat set.
+    isPrimary: boolean;              // exactly one candidate may be primary
     confidence: number;              // 0-100
     matchType: MatchType;            // EXACT_CODE | CODE_FAMILY | CATEGORY | TEXT_SYNONYM
     strongestContext: ContextLabel;  // REFERRAL_REASON | ASSESSMENT_PLAN | PROBLEM_LIST | ...
     polarity: Polarity;              // AFFIRMED | HEDGED | RULED_OUT | HISTORICAL | FAMILY
     evidenceIds: string[];
   }>;
+  primaryDeterminacy: 'CLEAR' | 'CONTESTED' | 'NONE';  // see §5.5
   payer: { payerId: string | null; rawName: string; category: string | null };
   requirements: Array<{ key: string; level: RequirementLevel; present: boolean;
                         detectionConfidence: number; evidenceIds: string[] }>;
@@ -263,6 +318,7 @@ interface TriageRule {
 
 type RuleCondition =
   | { type: 'DIAGNOSIS_CATEGORY'; categoryId: string; minConfidence: number;
+      position: 'PRIMARY' | 'ANY';                     // RED rules must use PRIMARY
       allowedContexts: ContextLabel[]; allowedPolarities: Polarity[] }
   | { type: 'ICD10_EXACT'; codes: string[] }
   | { type: 'ICD10_FAMILY'; prefixes: string[] }      // 'M05' matches M05.79
@@ -284,7 +340,7 @@ Default precedence, itself an org-editable ordered list:
 
 ```
 1. HARD_BLOCK / excluded payer                     → RED
-2. Diagnosis RED (strong match, primary context)   → RED
+2. Diagnosis RED — only when it is the PRIMARY dx  → RED
 3. Missing REQUIRED documentation                  → INCOMPLETE
 4. Any dimension raising PROVIDER_REVIEW           → YELLOW
 5. Diagnosis YELLOW                                → YELLOW
@@ -296,11 +352,6 @@ Payer-RED intentionally outranks INCOMPLETE by default: chasing a DXA report for
 the practice cannot accept is wasted staff time. Organizations that prefer the opposite can
 reorder it.
 
-**A RED diagnosis rule requires a strong match in a primary context.** A passing mention of
-"fibromyalgia" on page 50 of a packet whose referral reason is rheumatoid arthritis must
-not turn the referral RED. This is encoded as `allowedContexts` +
-`allowedPolarities` + `minConfidence` on every RED rule in the shipped rheumatology pack.
-
 The result always carries **all** dimension outcomes, not just the deciding one:
 
 ```
@@ -310,7 +361,46 @@ DOCUMENTATION   RED     — DXA report not detected in 63 pages
 FINAL           INCOMPLETE — Request DXA report
 ```
 
-### 5.5 Versioning and safe rule changes
+### 5.5 The primary-diagnosis rule
+
+**A RED category blocks a referral only when it is the primary diagnosis.** This is a
+product rule, confirmed by the practice, not a tunable default.
+
+Fibromyalgia is a fine thing to find in a packet. It is common, it is frequently
+comorbid, and it appears constantly in problem lists and past history. What the practice
+does not accept is a referral *for* fibromyalgia. So:
+
+| Packet contains | Primary diagnosis | Disposition |
+| --- | --- | --- |
+| RA (referral reason) + fibromyalgia (problem list, p.50) | Rheumatoid Arthritis | **GREEN** — schedule. Fibromyalgia noted, not blocking. |
+| Fibromyalgia only | Fibromyalgia | **RED** — not accepted |
+| Fibromyalgia (referral reason) + osteoporosis (past hx) | Fibromyalgia | **RED** — the reason for referral governs |
+| RA and fibromyalgia, neither clearly primary | contested | **YELLOW** — physician review |
+
+Mechanically:
+
+1. Diagnosis candidates are **ranked**, never treated as a flat set. Rank 1 is the primary,
+   determined by context weight (referral reason and Assessment/Plan outrank problem list,
+   past history and billing), affirmed polarity, recency, and match strength — the same
+   signals that drive diagnosis confidence (§7.1).
+2. Every RED rule in the shipped rheumatology pack carries `position: 'PRIMARY'`. A rule
+   editor that sets a RED outcome with `position: 'ANY'` gets a warning, because that
+   configuration is how a real patient gets turned away over a footnote.
+3. A non-primary RED category is **surfaced, not suppressed**. The referral shows
+   *"Fibromyalgia also documented (problem list, p.50) — not the primary diagnosis, not
+   blocking"*, with a link to the source page. Staff can see it and override if they
+   disagree with the ranking.
+4. **Contested primary → YELLOW.** When the top two candidates are within a configurable
+   margin (default 12 points) and they disagree — one GREEN, one RED — the system does not
+   pick. It routes to physician review with both candidates and their evidence displayed
+   side by side. This is the case §53 of the brief was written for: false confidence is
+   worse than uncertainty.
+
+The symmetric case follows from the same rule: if the primary is RED and a GREEN category
+appears only as a secondary, the disposition is RED. The referral reason governs. That is
+configurable, but it is the default.
+
+### 5.6 Versioning and safe rule changes
 
 - `rule_set_versions` are immutable once published. Editing produces a new draft version by
   copy-on-write; publishing stamps it and freezes it.
@@ -323,7 +413,7 @@ FINAL           INCOMPLETE — Request DXA report
 - Re-running triage under current rules is an explicit, audited administrator action. It
   creates a new evaluation row; it never rewrites the old one.
 
-### 5.6 Specialty rule packs
+### 5.7 Specialty rule packs
 
 The engine is specialty-agnostic. Rheumatology ships as a **rule pack**: a versioned,
 validated JSON bundle (categories, ICD-10 mappings, synonyms, requirements, rules,
@@ -596,6 +686,9 @@ Work
   /                                       Exception dashboard — "what needs attention now?"
   /referrals                              Inbox: filter, sort, saved views, bulk assign
   /referrals/new                          Manual intake + duplicate check
+  /intake                                 Drop files or a folder; batch history
+  /intake/batches/[id]                    Per-file progress, duplicates, failures, retry
+  /intake/review                          Confirm draft referrals proposed from packets
   /referrals/[id]                         Referral detail
   /referrals/[id]/documents/[docId]       Viewer, ?page=&evidence=
   /referrals/[id]/request-info            Missing-information composer
@@ -679,7 +772,7 @@ one choke point, so none of those can be forgotten individually.
 | --- | --- | --- | --- |
 | R-1 | Serverless timeouts cannot process 100-page OCR | High | Separate worker container from day one (§1.2) |
 | R-2 | Prisma + RLS needs `SET LOCAL` in an interactive transaction; interacts badly with some poolers and adds latency | High | Pooler in transaction mode; benchmark in Phase 2; RLS is a *backstop* — the app layer must be correct on its own, so RLS can be relaxed to read-only enforcement if the cost proves unacceptable |
-| R-3 | A weak text match producing a RED disposition harms a real patient | High | RED rules require primary context + strong match + confidence floor; RED never auto-communicates; §5.4 |
+| R-3 | A weak or incidental match producing a RED disposition harms a real patient | High | RED applies only to the *primary* diagnosis (§5.5); contested primaries route to physician review; RED never auto-communicates |
 | R-4 | Confidence numbers look calibrated but aren't | High | Explicit heuristic labeling, evaluation harness in Phase 5, override capture from day one |
 | R-5 | PHI leaking into logs, errors, analytics, or AI prompts | High | Structured logger with a PHI-field denylist + redaction; Sentry `beforeSend` scrubber; no PHI in URLs; AI PHI gate (§9.2); a CI test that greps fixtures through the logger |
 | R-6 | Cross-tenant data exposure | Critical | Four layers, §3 |

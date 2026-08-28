@@ -60,7 +60,9 @@ Upload and storage · validation and quarantine · the worker and queue · per-p
 extraction · OCR abstraction with Tesseract · section segmentation · ICD-10 detection with
 reference validation · assertion/negation classification · requirement detectors · evidence
 storage with offsets and boxes · evidence ranking · the PDF viewer with page deep-links and
-highlighting · the AI gateway with its PHI gate.
+highlighting · the AI gateway with its PHI gate · **bulk intake from a shared drive**:
+presigned multipart upload, batch progress, content-hash deduplication, document-first
+draft referrals, and the intake review queue.
 
 **Exit criteria.** The §63 scenario runs end to end: a 60-page fixture, M06.9 found on page
 37, supporting evidence on 2 and 17, one click to the highlighted source span.
@@ -68,6 +70,12 @@ highlighting · the AI gateway with its PHI gate.
 *Highest-variance phase.* Fax-quality OCR is where estimates go to die. Ship native-PDF text
 extraction first and treat scanned-fax OCR as a distinct milestone with its own accuracy bar
 measured on real (de-identified) fax samples.
+
+Bulk drive intake adds roughly a week to this phase and is the natural first milestone in
+it — uploading, deduplicating and reviewing a folder of packets is useful before any
+extraction works, because it gets the backlog into the system and gives every later stage
+real documents to run against. Multi-referral packet splitting is the piece I would cut
+first if the phase runs long; a manual split tool covers it.
 
 ## Phase 5 — Confidence · High · 2–3 weeks
 
@@ -119,7 +127,14 @@ Written alongside each phase, not after.
   business-day calculator. Fast, exhaustive, fixture-driven. The §58 matrix lives here:
   green + complete, green + missing docs, green + excluded payer, yellow, red, unknown,
   conflicting, historical vs active, exact code, family code, **diagnosis on page 58 of 60**,
-  and nothing found at all.
+  and nothing found at all. Plus the primary-diagnosis cases from ARCHITECTURE.md §5.5:
+  a RED category present but not primary alongside a GREEN primary (→ GREEN), a RED category
+  as the primary (→ RED), a GREEN category demoted to secondary under a RED primary (→ RED),
+  and a contested primary within the margin (→ YELLOW).
+- **Bulk intake suites**: re-dropping an identical file is deduplicated, a 500-file batch
+  does not starve live referrals, `received_at` is proposed from document content rather
+  than upload time, and a filename containing a patient name never reaches a log, a URL, a
+  job payload, or an audit metadata value.
 - **Repository/integration suites** against a real PostgreSQL, including the generated
   tenant-isolation matrix and the role-authorization matrix.
 - **Pipeline fixtures**: synthetic referral packets (native PDF, scanned/degraded, mixed)

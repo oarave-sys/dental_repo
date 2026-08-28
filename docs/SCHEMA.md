@@ -95,12 +95,27 @@ changed, contact attempt, scheduled, EHR linked, closed), `actor_type`, `user_id
 
 ## Documents and extraction
 
-**documents** — `referral_id`, `patient_id`, `filename_original`, `content_type`,
+**documents** — `referral_id` (nullable — a bulk-dropped packet exists before its
+referral does), `patient_id`, `intake_item_id`, `uploaded_at` (distinct from the
+referral's `received_at`), `filename_original`, `content_type`,
 `byte_size`, `sha256`, `storage_key`, `page_count`, `document_type`
 (`REFERRAL_ORDER`|`DEMOGRAPHICS`|`INSURANCE_CARD`|`OFFICE_NOTE`|`LAB`|`IMAGING`|`DXA`|`OTHER`),
 `document_date`, `uploaded_by`, `processing_status`, `processing_error_code`,
 `packet_coverage`, `quarantined_at`, `quarantine_reason`
 · the stored object is immutable; re-processing never rewrites it
+
+**intake_batches** — a bulk drop from a shared drive (§4.5 of ARCHITECTURE.md).
+`created_by`, `source_label`, `file_count`, `bytes_total`, `status`
+(`UPLOADING`|`PROCESSING`|`REVIEW`|`COMPLETE`|`FAILED`), `priority` (`LIVE`|`BACKLOG`),
+`counts` (jsonb: queued/processing/needs_review/duplicate/failed), `completed_at`
+
+**intake_items** — one per dropped file. `intake_batch_id`, `filename_original`
+(**treated as PHI** — never logged, never in a URL), `sha256`, `byte_size`, `upload_status`,
+`document_id`, `draft_referral_id`, `duplicate_of_document_id`, `state`
+(`QUEUED`|`UPLOADING`|`PROCESSING`|`NEEDS_REVIEW`|`CONFIRMED`|`DUPLICATE`|`FAILED`),
+`error_code`, `proposed_fields` (jsonb — each with value, confidence and evidence ids),
+`reviewed_by`, `reviewed_at`
+· unique `(organization_id, sha256)` is what makes a re-drop idempotent
 
 **document_pages** — `document_id`, `page_number`, `text`, `char_count`,
 `extraction_method` (`EMBEDDED_TEXT`|`OCR`|`NONE`), `ocr_confidence`,

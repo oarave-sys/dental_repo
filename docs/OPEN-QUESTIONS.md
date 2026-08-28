@@ -39,17 +39,20 @@ Keep the *found* case as a confidence percentage (that one is measurable — it 
 of a match that exists). Revisit a true absence probability in Phase 5 once the evaluation
 harness has real labels.
 
-### A-3. RED rules must require primary context, or they will hurt someone.
+### A-3. RED applies only to the primary diagnosis. ✅ *Confirmed by the practice.*
 
-A 60-page packet for a patient with rheumatoid arthritis will frequently contain the word
-"fibromyalgia" somewhere — a past visit, a problem list, a family history line. Under a naive
-text rule, that referral turns RED and the patient is not scheduled.
+Resolved: a RED category blocks a referral **only when it is the primary diagnosis**.
+Fibromyalgia in a packet is fine; a referral *for* fibromyalgia is not. If a GREEN category
+is the primary, the patient is scheduled regardless of what else appears in the packet.
 
-**Recommendation, already built into §5.4 of the architecture:** every RED rule requires a
-**strong match** (exact code or code family) in a **primary context** (referral reason or
-Assessment/Plan) with **affirmed polarity** and a confidence floor. A weak or incidental
-mention can produce YELLOW for human review. It must never produce RED on its own. I would
-like this treated as a non-negotiable product rule, not a tunable default.
+Specified in full at ARCHITECTURE.md §5.5. The mechanics: candidates are ranked rather than
+treated as a flat set; every RED rule in the rheumatology pack carries `position: 'PRIMARY'`;
+a non-primary RED category is surfaced with its source page but does not block; and a
+**contested primary** — the top two candidates within a default 12-point margin, disagreeing
+on outcome — routes to physician review rather than being decided by the system.
+
+One default I chose and would like confirmed: a RED primary with a GREEN category present
+only as a secondary resolves to **RED**. The referral reason governs. It is configurable.
 
 ### A-4. Marketing attribution should stay descriptive — and stop short of incentives.
 
@@ -123,6 +126,25 @@ silently truncated.
 
 ---
 
+### A-13. Bulk drive migration is an intake path, not a script. *(New)*
+
+The existing referrals live on a drive and will be dropped into the application in bulk.
+That changes one structural assumption: **the packet arrives before the referral record
+exists.** Specified at ARCHITECTURE.md §4.5. The parts worth your attention:
+
+- A bulk drop creates **drafts in a review queue**, never live referrals. Demographics,
+  referring office, payer and diagnosis are proposed from the packet with evidence links,
+  and a coordinator confirms.
+- `received_at` is proposed from the fax header or document date, **not** from upload time.
+  Without this, migrating a backlog would show 1,400 referrals received today and every
+  touch-time metric in §33 would be meaningless from day one.
+- Content-hash deduplication makes re-dropping a folder safe.
+- Backlog items run in a lower priority lane so a 2,000-file migration never delays a fax
+  that arrived this morning.
+- Filenames are treated as PHI. Drive filenames routinely contain patient names.
+
+---
+
 ## Part B — Decisions I need before Phase 2
 
 These change the architecture materially, so I would rather ask than assume.
@@ -155,3 +177,16 @@ preference:
   exclusions — confirming it is the target shapes the `EhrProvider` interface.
 - Roughly how many referrals per day, and how many concurrent staff? This sets the
   performance targets I design the inbox and reports against.
+
+And three about the drive migration specifically:
+
+- **Roughly how many files, and how far back?** A few hundred versus fifty thousand is the
+  difference between a weekend and a metered-cost conversation, and it decides whether the
+  backlog needs OCR at all or can stay text-only until someone opens it.
+- **Is it one PDF per referral, or are there fax spools with several referrals in one file?**
+  Multi-referral splitting is the piece of Phase 4 I would cut first, and knowing the answer
+  tells me whether that's safe.
+- **Do the filenames or folder names carry structure** — patient name, date, referring
+  office? If they follow a pattern, a parser turns that into proposed fields for free. Send
+  me a dozen example filenames (real ones are fine to describe in shape, e.g.
+  `LASTNAME_FIRSTNAME_MMDDYY.pdf`, rather than pasting actual patient names).
