@@ -18,3 +18,6 @@ npm-debug.log*
 /storage/
 /uploads/
 *.local.pdf
+
+# Generated Prisma client
+/src/generated/
