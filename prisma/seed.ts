@@ -5,6 +5,11 @@ import { hashPassword } from '../src/lib/auth/password'
 import { generateTotpSecret } from '../src/lib/auth/totp'
 import { ROLE_PERMISSIONS, type RoleKey } from '../src/lib/authz/permissions'
 import { DEFAULT_WEEK } from '../src/lib/domain/business-time'
+import { rheumatologyRulePack } from '../src/lib/rule-packs/rheumatology'
+import { installRulePack, publishRuleSet } from '../src/lib/services/rule-packs'
+import { evaluateReferral } from '../src/lib/services/triage'
+import { buildActor } from '../src/lib/authz'
+import type { TenantDb } from '../src/lib/db/client'
 
 /**
  * Development seed. Entirely fabricated — no real patient information, ever.
@@ -168,13 +173,25 @@ async function main() {
     ),
   )
 
+  /**
+   * INVENTED PLACEHOLDER PAYERS.
+   *
+   * These names are fictional and exist only so the development database has
+   * something to exercise the payer rules against. They are NOT the practice's
+   * contracted payers — that list is entered in Settings → Payers.
+   *
+   * Note that the Medicaid exclusion is written as a CATEGORY rule in the
+   * rheumatology rule pack, not against any of these names, so it applies to
+   * whatever Medicaid plans the practice later enters (or to none at all).
+   */
   const payers = await Promise.all(
     [
-      { name: 'Blue Ridge Commercial PPO', category: 'COMMERCIAL', isAccepted: true },
-      { name: 'Statewide HMO', category: 'HMO', isAccepted: true },
-      { name: 'Medicare Part B', category: 'MEDICARE', isAccepted: true },
-      { name: 'Valley Managed Medicaid', category: 'MEDICAID_MANAGED', isAccepted: false },
-      { name: 'Anchor Health Exchange', category: 'EXCHANGE', isAccepted: false },
+      { name: '[Sample] Commercial PPO', category: 'COMMERCIAL', isAccepted: true },
+      { name: '[Sample] Commercial HMO', category: 'HMO', isAccepted: true },
+      { name: '[Sample] Medicare', category: 'MEDICARE', isAccepted: true },
+      // Present only so the payer-RED path is demonstrable in development.
+      { name: '[Sample] Managed Medicaid Plan', category: 'MEDICAID_MANAGED', isAccepted: false },
+      { name: '[Sample] Exchange Plan', category: 'EXCHANGE', isAccepted: true },
     ].map((p) => db.payer.create({ data: { organizationId: orgA.id, ...p } })),
   )
 
@@ -398,7 +415,7 @@ async function main() {
     data: { organizationId: orgB.id, name: 'Summit Family Practice', city: 'Summit', state: 'CO' },
   })
   const payerB = await db.payer.create({
-    data: { organizationId: orgB.id, name: 'Mountain Health PPO', category: 'COMMERCIAL' },
+    data: { organizationId: orgB.id, name: '[Sample] Other Tenant PPO', category: 'COMMERCIAL' },
   })
   const patientB = await db.patient.create({
     data: {
@@ -421,6 +438,84 @@ async function main() {
       lastActivityAt: daysAgo(1),
     },
   })
+
+  // -------------------------------------------------------------------------
+  // Install and publish the rheumatology rule pack, then triage everything
+  // -------------------------------------------------------------------------
+  console.log('Installing the rheumatology rule pack…')
+
+  // The seeder runs as the schema owner, which is exempt from row-level
+  // security. That is the one place cross-tenant writes are legitimate.
+  const seedCtx = (organizationId: string, userId: string) => ({
+    db: db as unknown as TenantDb,
+    actor: buildActor({
+      userId,
+      organizationId,
+      email: 'seed@local',
+      name: 'Seed',
+      roleKeys: ['ADMINISTRATOR'],
+      mfaSatisfied: true,
+    }),
+    audit: () => {},
+  })
+
+  const ctxA = seedCtx(orgA.id, admin.id)
+  const installed = await installRulePack(ctxA, rheumatologyRulePack)
+  await publishRuleSet(ctxA, installed.ruleSetVersionId)
+  console.log(`  rule set v${installed.version} published`)
+
+  console.log('Running triage on seeded referrals…')
+  const seededReferrals = await db.referral.findMany({
+    where: { organizationId: orgA.id },
+    orderBy: { receivedAt: 'asc' },
+    select: { id: true, status: true, referralDiagnosisText: true },
+  })
+
+  for (const referral of seededReferrals) {
+    await evaluateReferral(ctxA, { referralId: referral.id })
+  }
+
+  /**
+   * A realistic mix. Referrals a coordinator has already worked have had their
+   * documents checked; new ones have not, and correctly show as "not yet
+   * checked" rather than claiming anything is missing.
+   */
+  const worked = seededReferrals.filter((r) => r.status !== 'NEW')
+  for (const [index, referral] of worked.entries()) {
+    const evaluation = await db.triageEvaluation.findFirst({
+      where: { referralId: referral.id, supersededById: null },
+      select: { id: true },
+    })
+    if (!evaluation) continue
+
+    // One osteoporosis referral is deliberately missing its DXA — the special
+    // rule from the triage guide, and the INCOMPLETE example.
+    const missingDxa = referral.referralDiagnosisText?.includes('DXA pending') ?? false
+    await db.referralRequirementResult.updateMany({
+      where: { triageEvaluationId: evaluation.id },
+      data: { status: 'PRESENT', humanOverride: true, overriddenByUserId: coordinator.id, overriddenAt: new Date() },
+    })
+    if (missingDxa || index % 5 === 4) {
+      await db.referralRequirementResult.updateMany({
+        where: {
+          triageEvaluationId: evaluation.id,
+          requirementKey: missingDxa ? 'DXA_REPORT' : 'OFFICE_NOTES',
+        },
+        data: { status: 'ABSENT', humanOverride: true },
+      })
+    }
+    await evaluateReferral(ctxA, { referralId: referral.id, trigger: 'REEVALUATION' })
+  }
+
+  const dispositions: Record<string, number> = {}
+  for (const row of await db.triageEvaluation.groupBy({
+    by: ['finalDisposition'],
+    where: { organizationId: orgA.id, supersededById: null },
+    _count: { _all: true },
+  })) {
+    dispositions[row.finalDisposition] = row._count._all
+  }
+  console.log('  dispositions:', dispositions)
 
   const counts = {
     organizations: await db.organization.count(),

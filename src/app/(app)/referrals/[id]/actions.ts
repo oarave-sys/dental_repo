@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { withAuthorizedAction } from '@/lib/actions/guard'
 import { changeStatus, assignReferral, addContactAttempt, addNote } from '@/lib/services/referrals'
 import { linkEhrPatient } from '@/lib/services/patients'
+import { evaluateReferral, setRequirementPresence } from '@/lib/services/triage'
 import { REFERRAL_STATUSES } from '@/lib/domain/referral-status'
 
 const statusEnum = z.enum(REFERRAL_STATUSES)
@@ -81,6 +82,35 @@ export const linkEhrAction = withAuthorizedAction({
       ehrPatientId: input.ehrPatientId?.trim() || null,
       createdInEhrAt: new Date(),
     })
+    revalidatePath(`/referrals/${input.referralId}`)
+    return { ok: true }
+  },
+})
+
+export const runTriageAction = withAuthorizedAction({
+  name: 'referral.runTriage',
+  permission: 'referral:update',
+  schema: z.object({ referralId: z.uuid() }),
+  handler: async (input, ctx) => {
+    const result = await evaluateReferral(ctx, {
+      referralId: input.referralId,
+      trigger: 'REEVALUATION',
+    })
+    revalidatePath(`/referrals/${input.referralId}`)
+    return result
+  },
+})
+
+export const setRequirementAction = withAuthorizedAction({
+  name: 'referral.setRequirement',
+  permission: 'triage:override',
+  schema: z.object({
+    referralId: z.uuid(),
+    requirementKey: z.string().min(1).max(64),
+    status: z.enum(['PRESENT', 'ABSENT', 'UNCHECKED']),
+  }),
+  handler: async (input, ctx) => {
+    await setRequirementPresence(ctx, input)
     revalidatePath(`/referrals/${input.referralId}`)
     return { ok: true }
   },

@@ -5,7 +5,7 @@ sits **in front of** the EHR. It receives referrals, stages patients before EHR 
 analyzes large referral packets, applies each organization's own deterministic triage rules,
 and explains every recommendation back to its source page.
 
-> **Status: Phase 2 (core platform) built and tested. Phases 3–9 not started.**
+> **Status: Phases 2 (core platform) and 3 (triage rules) built and tested. Phases 4–9 not started.**
 
 ## Core principle
 
@@ -50,7 +50,7 @@ backstop if the application connects as a role it applies to.
 ```bash
 npm run typecheck     # strict TypeScript
 npm run lint          # includes the architecture-layering rules
-npm run test          # 81 unit and integration tests
+npm run test          # 120 unit and integration tests
 ```
 
 The integration tests run against a real PostgreSQL as the application role —
@@ -65,15 +65,27 @@ BASE_URL=http://localhost:3000 npx tsx tests/e2e/smoke.mts
 
 ## What is built
 
-Phase 2 is the referral workflow with staff-entered diagnoses: authentication
-with mandatory MFA, four-layer tenant isolation, role-based access, the
-pre-EHR patient staging database with duplicate detection, the referral inbox
-and detail screen, the status workflow, the exception dashboard, touch-time
-metrics, and an append-only audit trail.
+**Phase 2 — core platform.** Authentication with mandatory MFA, four-layer
+tenant isolation, role-based access, the pre-EHR patient staging database with
+duplicate detection, the referral inbox and detail screen, the status workflow,
+the exception dashboard, touch-time metrics, and an append-only audit trail.
 
-Document upload and analysis (Phase 4), the triage rules engine (Phase 3) and
-confidence scoring (Phase 5) are not built. The referral detail screen says so
-where they will go.
+**Phase 3 — triage rules.** A deterministic, versioned rules engine that is pure
+by construction: facts in, result out, no I/O. Seven dimensions evaluated
+independently and all reported, never collapsed into one unexplained verdict.
+The rheumatology triage guide ships as a **rule pack** — data an administrator
+edits in Settings, not code. ICD-10 matching across five strategies, mapping to
+families and ranges rather than guessed leaf codes. A rule simulator that shows
+what a draft would change across real referrals before it is published.
+
+The safety property the practice asked for is enforced throughout: **a category
+only declines a referral when it is the primary diagnosis.** Fibromyalgia in a
+packet is fine; a referral *for* fibromyalgia is not.
+
+Document upload and packet analysis (Phase 4) and full confidence scoring with
+source provenance (Phase 5) are not built. Until then, diagnosis facts come from
+what the referring office supplied and a coordinator confirms what the fax
+contains.
 
 ## Not a compliance claim
 

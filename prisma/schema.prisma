@@ -50,6 +50,18 @@ model Organization {
   touchMetrics          ReferralTouchMetrics[]
   matchCandidates       PatientMatchCandidate[]
   ehrLinks              EhrLink[]
+  referralCategories    ReferralCategory[]
+  categoryCodeMaps      ReferralCategoryCodeMap[]
+  diagnosisSynonyms     DiagnosisSynonym[]
+  ruleSetVersions       RuleSetVersion[]
+  triageRules           TriageRule[]
+  triageRuleActions     TriageRuleAction[]
+  requirementDefs       RequirementDefinition[]
+  payerRules            PayerRule[]
+  triageEvaluations     TriageEvaluation[]
+  dimensionResults      TriageDimensionResult[]
+  diagnosisCandidates   DiagnosisCandidate[]
+  requirementResults    ReferralRequirementResult[]
 
   @@map("organizations")
 }
@@ -71,6 +83,18 @@ model OrganizationSettings {
 
   /// Duplicate detection: minimum score (0-100) to surface a possible match.
   duplicateReviewThreshold Int @default(60)
+
+  // --- Triage thresholds (Phase 3) ---
+  /// What an unidentifiable diagnosis produces. YELLOW sends it to a person;
+  /// UNKNOWN leaves it in a bucket someone has to remember to work.
+  unknownDiagnosisBehavior UnknownDiagnosisBehavior @default(YELLOW)
+  /// Below this, a diagnosis is not confident enough to route on.
+  diagnosisConfidenceFloor Int @default(55)
+  /// Top two candidates within this many points, disagreeing, means the system
+  /// refuses to pick and asks a physician.
+  contestedMargin          Int @default(12)
+  /// Confidence band labels, organization-configurable.
+  confidenceBands          Json?
 
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
@@ -433,6 +457,13 @@ model Referral {
   documents       Document[]
   touchMetrics    ReferralTouchMetrics?
   intakeItem      IntakeItem?
+  triageEvaluations TriageEvaluation[]
+
+  /// The evaluation currently shown on the referral. Points at an immutable row.
+  currentTriageEvaluationId String? @db.Uuid
+  confirmedCategoryId       String? @db.Uuid
+  triageConfirmedByUserId   String? @db.Uuid
+  triageConfirmedAt         DateTime? @db.Timestamptz(6)
 
   @@index([organizationId, status, receivedAt])
   @@index([organizationId, assignedUserId, status])
@@ -668,6 +699,11 @@ model AuditLog {
 // Enums
 // ---------------------------------------------------------------------------
 
+enum UnknownDiagnosisBehavior {
+  YELLOW
+  UNKNOWN
+}
+
 enum OrgStatus {
   ACTIVE
   SUSPENDED
@@ -835,4 +871,417 @@ enum AuditAction {
   USER_CREATE
   USER_DISABLE
   EXPORT
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — clinical reference data, organization rule packs, evaluations
+// ---------------------------------------------------------------------------
+
+/// Global ICD-10-CM reference. NOT tenant-scoped: the code set is public-domain
+/// CMS data, identical for every organization. Version-stamped by release year
+/// so a referral matches against the codes in force when it was received —
+/// otherwise the annual update would silently rewrite history.
+model DiagnosisCode {
+  id               String  @id @default(uuid()) @db.Uuid
+  code             String
+  /// Dot removed, for prefix and range matching.
+  codeNormalized   String
+  descriptionShort String
+  descriptionLong  String?
+  chapter          String?
+  category3        String
+  versionYear      Int
+  isBillable       Boolean @default(true)
+  isActive         Boolean @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([code, versionYear])
+  @@index([versionYear, codeNormalized])
+  @@index([versionYear, category3])
+  @@map("diagnosis_codes")
+}
+
+/// An organization's clinical concept — "Rheumatoid Arthritis". Rules reference
+/// categories, not raw codes, so a code-set update never rewrites a policy.
+model ReferralCategory {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  key         String
+  name        String
+  description String?
+  specialty   String  @default("RHEUMATOLOGY")
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  codeMaps  ReferralCategoryCodeMap[]
+  synonyms  DiagnosisSynonym[]
+  candidates DiagnosisCandidate[]
+
+  @@unique([organizationId, key])
+  @@map("referral_categories")
+}
+
+/// Maps a category to codes. Where the triage guide names a condition spanning
+/// several codes we store the FAMILY or RANGE, never a guessed leaf.
+model ReferralCategoryCodeMap {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String @db.Uuid
+  category       ReferralCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  matchType       CodeMatchType
+  /// A full code for EXACT, a prefix for FAMILY, the low bound for RANGE.
+  value           String
+  /// High bound, RANGE only.
+  valueTo         String?
+  weight          Int     @default(100)
+  /// Shown when specificity depends on information a referral may not contain.
+  specificityNote String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([organizationId, categoryId])
+  @@map("referral_category_code_maps")
+}
+
+/// Curated in-house synonyms. Abbreviations carry a low standalone weight:
+/// "RA" alone never establishes rheumatoid arthritis, it corroborates.
+model DiagnosisSynonym {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryId     String @db.Uuid
+  category       ReferralCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  term           String
+  termNormalized String
+  matchMode      SynonymMatchMode @default(PHRASE)
+  weight         Int              @default(60)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([organizationId, categoryId])
+  @@map("diagnosis_synonyms")
+}
+
+/// An immutable snapshot of the organization's policy. Publishing freezes it;
+/// editing copy-on-writes a new draft. Every evaluation names the version that
+/// produced it, so "why did the system say this on that date" stays answerable.
+model RuleSetVersion {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  version         Int
+  status          RuleSetStatus @default(DRAFT)
+  sourceRulePack  String?
+  notes           String?
+  publishedAt     DateTime? @db.Timestamptz(6)
+  publishedByUserId String? @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  rules        TriageRule[]
+  requirements RequirementDefinition[]
+  payerRules   PayerRule[]
+  evaluations  TriageEvaluation[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, status])
+  @@map("rule_set_versions")
+}
+
+model TriageRule {
+  id               String @id @default(uuid()) @db.Uuid
+  organizationId   String @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleSetVersionId String @db.Uuid
+  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id], onDelete: Cascade)
+
+  dimension  TriageDimension
+  name       String
+  /// Lower runs first. Ties are broken deterministically by name.
+  priority   Int     @default(100)
+  /// Zod-validated discriminated union; see src/lib/rules/conditions.ts.
+  condition  Json
+  outcome    TriageOutcome
+  blocking   Boolean @default(false)
+  /// The sentence shown to staff in the explanation. Written by the organization.
+  rationale  String
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+
+  actions TriageRuleAction[]
+
+  @@index([organizationId, ruleSetVersionId, dimension])
+  @@map("triage_rules")
+}
+
+model TriageRuleAction {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triageRuleId   String @db.Uuid
+  triageRule     TriageRule @relation(fields: [triageRuleId], references: [id], onDelete: Cascade)
+
+  type      RuleActionType
+  params    Json?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([organizationId, triageRuleId])
+  @@map("triage_rule_actions")
+}
+
+/// Only REQUIRED items block readiness. RECOMMENDED and OPTIONAL are surfaced
+/// so staff can chase them, but a generic clinical suggestion is not practice
+/// policy and must never hold up a patient.
+model RequirementDefinition {
+  id               String @id @default(uuid()) @db.Uuid
+  organizationId   String @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleSetVersionId String @db.Uuid
+  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id], onDelete: Cascade)
+
+  key   String
+  label String
+  level RequirementLevel @default(REQUIRED)
+  /// Null means the requirement applies to every referral.
+  appliesToCategoryKey String?
+  /// Detector spec for Phase 4's packet search: terms, regexes, section hints.
+  detector Json?
+  sortOrder Int @default(0)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([ruleSetVersionId, key, appliesToCategoryKey])
+  @@index([organizationId, ruleSetVersionId])
+  @@map("requirement_definitions")
+}
+
+/// Payer policy is organization configuration, never global application code.
+model PayerRule {
+  id               String @id @default(uuid()) @db.Uuid
+  organizationId   String @db.Uuid
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleSetVersionId String @db.Uuid
+  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id], onDelete: Cascade)
+
+  /// Either a specific payer or a whole category. A category rule means a newly
+  /// added plan inherits the policy instead of quietly defaulting to accepted.
+  payerId       String? @db.Uuid
+  payerCategory String?
+  outcome       TriageOutcome
+  /// Why, in the organization's own words. Shown to staff, never to a patient.
+  rationale     String
+  isActive      Boolean @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([organizationId, ruleSetVersionId])
+  @@map("payer_rules")
+}
+
+/// One evaluation run. Append-only: re-running triage creates a new row and
+/// marks the old one superseded, so history is never rewritten.
+model TriageEvaluation {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  referralId     String @db.Uuid
+  referral       Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  ruleSetVersionId String @db.Uuid
+  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id])
+
+  engineVersion   String
+  trigger         EvaluationTrigger @default(AUTOMATIC)
+  evaluatedAt     DateTime @default(now()) @db.Timestamptz(6)
+  finalDisposition TriageOutcome
+  dispositionConfidence Int
+  nextAction      String
+  /// Hash of the facts, so an identical re-run is recognisable as such.
+  factsHash       String
+  supersededById  String? @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  dimensionResults   TriageDimensionResult[]
+  diagnosisCandidates DiagnosisCandidate[]
+  requirementResults  ReferralRequirementResult[]
+
+  @@index([organizationId, referralId, evaluatedAt])
+  @@map("triage_evaluations")
+}
+
+model TriageDimensionResult {
+  id                 String @id @default(uuid()) @db.Uuid
+  organizationId     String @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triageEvaluationId String @db.Uuid
+  triageEvaluation   TriageEvaluation @relation(fields: [triageEvaluationId], references: [id], onDelete: Cascade)
+
+  dimension     TriageDimension
+  outcome       TriageOutcome
+  summary       String
+  matchedRuleIds String[]
+  blocking      Boolean @default(false)
+  /// True when this dimension decided the final disposition.
+  decisive      Boolean @default(false)
+  sortOrder     Int     @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([organizationId, triageEvaluationId])
+  @@map("triage_dimension_results")
+}
+
+model DiagnosisCandidate {
+  id                 String @id @default(uuid()) @db.Uuid
+  organizationId     String @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triageEvaluationId String @db.Uuid
+  triageEvaluation   TriageEvaluation @relation(fields: [triageEvaluationId], references: [id], onDelete: Cascade)
+  categoryId         String @db.Uuid
+  category           ReferralCategory @relation(fields: [categoryId], references: [id])
+
+  rank                Int
+  isPrimary           Boolean @default(false)
+  diagnosisConfidence Int
+  matchType           CodeMatchType
+  strongestContext    EvidenceContext @default(UNKNOWN)
+  polarity            EvidencePolarity @default(AFFIRMED)
+  bestCode            String?
+  /// Shown side by side when specificity genuinely cannot be determined.
+  possibleCodes       Json?
+  /// Every scoring term that fired, with its value. Renders "why this score?".
+  breakdown           Json?
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([organizationId, triageEvaluationId])
+  @@map("diagnosis_candidates")
+}
+
+model ReferralRequirementResult {
+  id                 String @id @default(uuid()) @db.Uuid
+  organizationId     String @db.Uuid
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  triageEvaluationId String @db.Uuid
+  triageEvaluation   TriageEvaluation @relation(fields: [triageEvaluationId], references: [id], onDelete: Cascade)
+
+  requirementKey  String
+  label           String
+  level           RequirementLevel
+  /// Three states, not two. UNCHECKED is not the same as ABSENT: before the
+  /// packet has been read, nobody has established that anything is missing,
+  /// and asserting an absence nobody has checked is how a patient gets held up
+  /// for a document that was in the fax all along.
+  status          RequirementStatus @default(UNCHECKED)
+  /// Strength of a match that exists. Absence is reported as search coverage
+  /// instead — a calibrated probability that something is absent is not
+  /// achievable yet, and a precise-looking number invites misplaced trust.
+  detectionConfidence Int?
+  searchCoverage      Int?
+  humanOverride       Boolean @default(false)
+  overriddenByUserId  String? @db.Uuid
+  overriddenAt        DateTime? @db.Timestamptz(6)
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([organizationId, triageEvaluationId])
+  @@map("referral_requirement_results")
+}
+
+enum CodeMatchType {
+  EXACT_CODE
+  CODE_FAMILY
+  CODE_RANGE
+  DIAGNOSIS_CATEGORY
+  TEXT_SYNONYM
+  NONE
+}
+
+enum SynonymMatchMode {
+  PHRASE
+  ABBREVIATION
+  TOKEN
+}
+
+enum RuleSetStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TriageDimension {
+  DIAGNOSIS
+  PAYER
+  DOCUMENTATION
+  REFERRAL_SOURCE
+  PATIENT_STATUS
+  ORG_EXCEPTION
+  PROVIDER_REVIEW
+}
+
+enum TriageOutcome {
+  GREEN
+  YELLOW
+  RED
+  INCOMPLETE
+  UNKNOWN
+  REVIEW
+  NO_EFFECT
+}
+
+enum RuleActionType {
+  REQUIRE_DOCUMENT
+  SET_PRIORITY
+  ADD_TAG
+  ROUTE_TO_ROLE
+  REQUEST_INFO_TEMPLATE
+  FLAG_PHYSICIAN_REVIEW
+}
+
+enum RequirementLevel {
+  REQUIRED
+  RECOMMENDED
+  OPTIONAL
+}
+
+enum RequirementStatus {
+  PRESENT
+  ABSENT
+  UNCHECKED
+}
+
+enum EvaluationTrigger {
+  AUTOMATIC
+  REEVALUATION
+  SIMULATION
+}
+
+enum EvidenceContext {
+  REFERRAL_REASON
+  ASSESSMENT_PLAN
+  ENCOUNTER_DIAGNOSIS
+  PROBLEM_LIST
+  HPI
+  PAST_HISTORY
+  FAMILY_HISTORY
+  BILLING
+  UNKNOWN
+}
+
+enum EvidencePolarity {
+  AFFIRMED
+  HEDGED
+  RULED_OUT
+  HISTORICAL
+  FAMILY
+  CONTRADICTS
 }

@@ -120,3 +120,65 @@ card will go, rather than showing an empty container. The schema already carries
 `documents`, `intake_batches` and `intake_items` because `documents.referralId`
 being nullable (a bulk-dropped packet exists before its referral does) is a
 structural decision that is painful to retrofit.
+
+---
+
+## D-10. Requirements have three states, not two
+
+The first Phase 3 implementation modelled a required document as `present:
+boolean`. Seeding revealed what that means in practice: **every referral came
+out INCOMPLETE**, because nothing had been ticked, and the system was therefore
+asserting that documents were missing when nobody had looked at the fax yet.
+
+That is the same error `docs/OPEN-QUESTIONS.md` A-2 argues against — claiming an
+absence that has not been established. Requirements are now `PRESENT | ABSENT |
+UNCHECKED`:
+
+- **ABSENT** blocks, and produces the records request.
+- **UNCHECKED** does not block. The documentation dimension reports UNKNOWN and
+  the next action becomes *"Confirm the required documents, then contact
+  patient"* rather than *"Request records"*.
+- Only a human confirmation (or, from Phase 4, a packet search that ran and
+  found nothing) turns UNCHECKED into ABSENT.
+
+Human confirmations carry forward across re-evaluations. A coordinator's
+statement about what is in a fax does not expire because the rules changed.
+
+## D-11. Confidence penalties apply only to the dimension the decision rests on
+
+An early version of the disposition-confidence formula subtracted 8 points for
+*every* dimension with insufficient data. That quietly undermined the reason the
+two scores are separate: a Medicaid exclusion was losing confidence because the
+diagnosis was unclear, when an excluded payer is excluded whatever the patient
+turns out to have.
+
+Penalties now apply to the decisive dimension only — plus, when documentation
+decides, to the diagnosis, because which documents are required depends on the
+primary category. Caught by the test asserting a payer-RED stays ≥90 on a
+low-confidence diagnosis.
+
+## D-12. Non-primary categories are noted even when they could never block
+
+The RED rules carry context and polarity filters so only a properly asserted
+primary diagnosis can decline a referral. Applying those same filters when
+deciding what to *tell* a coordinator was wrong: a fibromyalgia line in a
+problem list can never block, but it is still worth showing.
+
+Whether a category may BLOCK and whether it is worth SURFACING are separate
+questions, and the engine now answers them separately.
+
+## D-13. ICD-10 ranges are compared at category level
+
+`M15`–`M19` covers osteoarthritis. Comparing full normalised codes
+lexicographically excludes `M19.9`, because `"M199"` sorts after `"M19"`.
+Range membership is therefore decided on the three-character category, which is
+the unit ICD-10 ranges are actually defined in. There is a test for exactly this.
+
+## D-14. ICD-10 reference data is not bundled
+
+`diagnosis_codes` is a global, version-stamped table loaded from the annual
+public-domain CMS ICD-10-CM release. The importer is a seam, not a bundled data
+file: shipping a 70,000-row code set in the repository would bloat it and go
+stale annually. The rule pack references code families and ranges directly, so
+triage works before any import — the reference table adds descriptions and
+search.

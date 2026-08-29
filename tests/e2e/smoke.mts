@@ -193,6 +193,69 @@ console.log('\nDuplicate detection at intake')
   await context.close()
 }
 
+console.log('\nTriage intelligence')
+{
+  const { context, page } = await signIn('coordinator@lakeside.example')
+  await page.goto(`${BASE}/referrals`)
+
+  // The fibromyalgia referral is the practice's RED case.
+  await page.click('text=Boyle, Terrence')
+  await page.waitForURL(/\/referrals\/[0-9a-f-]{36}/)
+  const red = await page.textContent('body')
+  check('a fibromyalgia referral shows as not accepted', /Not accepted/i.test(red ?? ''))
+  check('and explains why, in the practice’s own words',
+    /not accepted as the reason for referral/i.test(red ?? ''))
+  check('and shows every dimension, not just the deciding one',
+    /DIAGNOSIS/i.test(red ?? '') && /PAYER/i.test(red ?? '') && /DOCUMENTATION/i.test(red ?? ''))
+  check('and labels the confidence scores as heuristic',
+    /not calibrated probabilities/i.test(red ?? ''))
+
+  // The osteoporosis DXA special rule from the triage guide.
+  await page.goto(`${BASE}/referrals`)
+  await page.click('text=Vance, Eleanor')
+  await page.waitForURL(/\/referrals\/[0-9a-f-]{36}/)
+  const incomplete = await page.textContent('body')
+  check('an osteoporosis referral without a DXA is incomplete', /Incomplete/i.test(incomplete ?? ''))
+  check('and the next action names the missing document', /DXA report/i.test(incomplete ?? ''))
+  check('and the diagnosis dimension is still reported as good',
+    /Good to schedule/i.test(incomplete ?? ''))
+
+  // Three-state documentation, not a checkbox.
+  check('documents offer in-packet / missing / not-checked',
+    /In packet/i.test(incomplete ?? '') && /Not checked/i.test(incomplete ?? ''))
+
+  await context.close()
+}
+
+console.log('\nRule administration')
+{
+  const { context, page } = await signIn('admin@lakeside.example')
+  await page.goto(`${BASE}/settings/rules`)
+  const rules = await page.textContent('body')
+  check('the published rule set is listed', /published/i.test(rules ?? ''))
+  check('declining rules are marked primary-only', /primary only/i.test(rules ?? ''))
+  check('the Medicaid exclusion is shown as a category rule',
+    /MEDICAID/i.test(rules ?? '') && /not contracted/i.test(rules ?? ''))
+  check('required vs recommended is visible', /required/i.test(rules ?? '') && /recommended/i.test(rules ?? ''))
+
+  await page.goto(`${BASE}/settings/rules/simulator`)
+  await page.click('button:has-text("Run simulation")')
+  await page.waitForSelector('text=referrals evaluated', { timeout: 30_000 })
+  const sim = await page.textContent('body')
+  check('the simulator reports how many referrals it evaluated', /referrals evaluated/i.test(sim ?? ''))
+  check('and does not name patients', !/Vance|Delgado|Solberg|Boyle/.test(sim ?? ''))
+  await context.close()
+}
+
+console.log('\nRule administration is administrator-only')
+{
+  const { context, page } = await signIn('coordinator@lakeside.example')
+  await page.goto(`${BASE}/settings/rules`)
+  const denied = await page.textContent('body')
+  check('a coordinator cannot open the rules screen', /do not have access/i.test(denied ?? ''))
+  await context.close()
+}
+
 await browser.close()
 await db.$disconnect()
 

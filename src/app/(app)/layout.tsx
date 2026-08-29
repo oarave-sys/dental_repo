@@ -21,6 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/referrals', label: 'Referrals', show: can(actor, 'referral:read') },
     { href: '/patients', label: 'Patients', show: can(actor, 'patient:read') },
     { href: '/sources', label: 'Referring offices', show: can(actor, 'source:read') },
+    { href: '/settings/rules', label: 'Triage rules', show: can(actor, 'config:manage') },
     { href: '/settings/users', label: 'Users', show: can(actor, 'user:manage') },
     { href: '/settings/audit', label: 'Audit', show: can(actor, 'audit:read') },
   ].filter((item) => item.show)

@@ -12,9 +12,14 @@ import {
   formatDate, formatDateTime, formatDuration,
 } from '@/components/ui'
 import { StatusActions, AssignForm, ContactForm, NoteForm, EhrLinkForm } from './forms'
+import { RequirementChecklist, RerunTriageButton } from './triage-forms'
 import {
   changeStatusAction, assignAction, logContactAction, addNoteAction, linkEhrAction,
+  runTriageAction, setRequirementAction,
 } from './actions'
+import { loadEvaluationDetail } from '@/lib/services/triage'
+import { DispositionBadge, ConfidenceMeter, DimensionRow, type TriageOutcome } from '@/components/ui/triage'
+import { formatCode } from '@/lib/icd10'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,9 +30,9 @@ export default async function ReferralDetailPage({
 }) {
   const { id } = await params
 
-  const { referral, teammates, actor } = await withAuthorizedQuery('referral:read', async ({ db, actor }) => {
+  const { referral, teammates, actor, evaluation } = await withAuthorizedQuery('referral:read', async ({ db, actor }) => {
     const referral = await getReferralDetail(db, id)
-    if (!referral) return { referral: null, teammates: [], actor }
+    if (!referral) return { referral: null, teammates: [], actor, evaluation: null }
 
     // Opening a referral is access to PHI. It is audited every time.
     await writeAudit(db, actor, {
@@ -42,6 +47,7 @@ export default async function ReferralDetailPage({
       referral,
       teammates: memberships.map((m) => ({ id: m.user.id, name: m.user.name })),
       actor,
+      evaluation: await loadEvaluationDetail(db, id),
     }
   })
 
@@ -50,6 +56,9 @@ export default async function ReferralDetailPage({
   const status = referral.status as ReferralStatus
   const age = calendarDaysBetween(referral.receivedAt, new Date())
   const patient = referral.patient
+  const primary = evaluation?.diagnosisCandidates.find((c) => c.isPrimary) ?? null
+  const noted = evaluation?.diagnosisCandidates.filter((c) => !c.isPrimary) ?? []
+  const possible = (primary?.possibleCodes as Array<{ description: string }> | null) ?? []
 
   return (
     <div className="space-y-4">
@@ -93,21 +102,102 @@ export default async function ReferralDetailPage({
         </dl>
       </div>
 
-      {/* Triage intelligence lands in Phases 3-5; the seam is here and honest. */}
-      <Card title="Referral intelligence">
-        <p className="text-sm text-ink-2">
-          Document analysis, diagnosis identification and triage recommendations arrive in
-          Phases 3 to 5. Until then, staff record the diagnosis and disposition themselves,
-          and every decision is already captured on the timeline below.
-        </p>
-        {referral.referringDiagnosisCode && (
-          <p className="mt-2 text-sm text-ink-2">
-            Referring diagnosis code:{' '}
-            <span className="font-mono text-ink">{referral.referringDiagnosisCode}</span>
-            <span className="ml-2 text-xs text-ink-3">as supplied by the referring office, not verified</span>
+      {/* Referral intelligence. Every dimension is shown, not just the deciding one. */}
+      {evaluation ? (
+        <section className="card overflow-hidden">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-sm font-semibold text-ink">Referral intelligence</h2>
+              <DispositionBadge outcome={evaluation.finalDisposition as TriageOutcome} size="lg" />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-ink-3">
+                Rules v{evaluation.ruleSetVersion.version} · {formatDateTime(evaluation.evaluatedAt)}
+              </span>
+              {can(actor, 'referral:update') && (
+                <RerunTriageButton referralId={referral.id} action={runTriageAction} />
+              )}
+            </div>
+          </header>
+
+          <div className="grid gap-4 px-4 py-3 md:grid-cols-[1fr_240px]">
+            <div>
+              <div className="mb-2 text-sm">
+                <span className="text-ink-3">Next action: </span>
+                <span className="font-medium text-ink">{evaluation.nextAction}</span>
+              </div>
+              {primary ? (
+                <p className="text-sm text-ink-2">
+                  Likely diagnosis <span className="font-medium text-ink">{primary.category.name}</span>
+                  {primary.bestCode && (
+                    <span className="ml-2 font-mono text-xs text-ink">{formatCode(primary.bestCode)}</span>
+                  )}
+                  <span className="ml-2 text-xs text-ink-3">
+                    matched by {primary.matchType.replaceAll('_', ' ').toLowerCase()}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-ink-2">No diagnosis could be identified from this referral.</p>
+              )}
+
+              {possible.length > 0 && (
+                <div className="mt-2 rounded border border-rule bg-surface-2 px-3 py-2 text-xs text-ink-2">
+                  <span className="font-medium text-ink">Specificity depends on the record: </span>
+                  {possible.map((p, i) => (
+                    <span key={i}>{i > 0 && ' · '}{p.description}</span>
+                  ))}
+                </div>
+              )}
+
+              {noted.length > 0 && (
+                <div className="mt-2 rounded border border-amber/40 bg-amber-bg/40 px-3 py-2 text-xs text-ink-2">
+                  {noted.map((n) => (
+                    <div key={n.id}>
+                      <span className="font-medium text-ink">{n.category.name}</span> also documented
+                      ({n.strongestContext.replaceAll('_', ' ').toLowerCase()}) — not the primary
+                      diagnosis, not blocking.
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {primary && (
+                <ConfidenceMeter score={primary.diagnosisConfidence} label="Diagnosis confidence" />
+              )}
+              <ConfidenceMeter score={evaluation.dispositionConfidence} label="Disposition confidence" />
+              <p className="text-[11px] leading-snug text-ink-3">
+                Heuristic scores, not calibrated probabilities. They change what is surfaced
+                first, never what happens to a patient.
+              </p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-rule border-t border-rule">
+            {evaluation.dimensionResults.map((d) => (
+              <DimensionRow
+                key={d.id}
+                dimension={d.dimension}
+                outcome={d.outcome as TriageOutcome}
+                summary={d.summary}
+                decisive={d.decisive}
+              />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <Card title="Referral intelligence">
+          <p className="text-sm text-ink-2">
+            This referral has not been triaged yet.
           </p>
-        )}
-      </Card>
+          {can(actor, 'referral:update') && (
+            <div className="mt-3">
+              <RerunTriageButton referralId={referral.id} action={runTriageAction} />
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
@@ -164,6 +254,22 @@ export default async function ReferralDetailPage({
               </div>
             )}
           </Card>
+
+          {evaluation && (
+            <Card title="Required documentation">
+              <RequirementChecklist
+                referralId={referral.id}
+                rows={evaluation.requirementResults.map((r) => ({
+                  requirementKey: r.requirementKey,
+                  label: r.label,
+                  level: r.level,
+                  status: r.status,
+                }))}
+                action={setRequirementAction}
+                canEdit={can(actor, 'triage:override')}
+              />
+            </Card>
+          )}
 
           <Card title="Documents">
             {referral.documents.length === 0 ? (

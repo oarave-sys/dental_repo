@@ -157,7 +157,7 @@ p(`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_
 p(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE};`)
 for (const t of APPEND_ONLY) p(`REVOKE UPDATE, DELETE ON "${t}" FROM ${APP_ROLE};`)
 
-const dir = 'prisma/migrations/20260828234500_row_level_security'
+const dir = process.argv[2] ?? 'prisma/migrations/20260828234500_row_level_security'
 mkdirSync(dir, { recursive: true })
 writeFileSync(`${dir}/migration.sql`, lines.join('\n') + '\n')
 console.log(`strict: ${strict.length}  bootstrap: ${bootstrap.length}  -> ${dir}/migration.sql`)
