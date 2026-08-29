@@ -109,6 +109,25 @@ for (const t of bootstrap) {
   p()
 }
 
+// membership_roles is a pure join table with no organization_id of its own, so
+// it would otherwise get no policy at all. It is reachable only through a
+// membership, which is tenant-scoped — so scope it through that.
+p('-- ---------------------------------------------------------------------------')
+p('-- Join table: no organization_id of its own, scoped through its membership.')
+p('-- ---------------------------------------------------------------------------')
+p('ALTER TABLE "membership_roles" ENABLE ROW LEVEL SECURITY;')
+p('DROP POLICY IF EXISTS tenant_isolation ON "membership_roles";')
+p('CREATE POLICY tenant_isolation ON "membership_roles"')
+p('  USING (')
+p("    NULLIF(current_setting('app.current_org_id', true), '') IS NULL")
+p('    OR EXISTS (')
+p('      SELECT 1 FROM memberships m')
+p('      WHERE m."id" = "membershipId"')
+p(`        AND m."organizationId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid`)
+p('    )')
+p('  );')
+p()
+
 p('-- ---------------------------------------------------------------------------')
 p('-- Append-only tables. Application discipline is not a guarantee:')
 p('-- docs/OPEN-QUESTIONS.md A-8.')

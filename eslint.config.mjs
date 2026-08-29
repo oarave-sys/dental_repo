@@ -1,21 +1,24 @@
 import next from 'eslint-config-next'
 
+
 /**
  * Architecture layering is enforced here, not by convention.
  * See docs/ARCHITECTURE.md §1.3.
  */
-export default [
+const config = [
   { ignores: ['.next/**', 'node_modules/**', 'src/generated/**'] },
-  ...next(),
+  ...next,
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
-          paths: [
+          patterns: [
             {
-              name: '@prisma/client',
+              // Both the package and the generated client. Guarding only one
+              // leaves the rule looking enforced while it is not.
+              group: ['@prisma/client', '@/generated/prisma', '@/generated/prisma/*'],
               message:
                 'Prisma may only be imported from src/lib/db and src/lib/repositories. ' +
                 'Everything else goes through a repository. See docs/ARCHITECTURE.md §1.3.',
@@ -26,8 +29,17 @@ export default [
     },
   },
   {
-    // The two layers that are allowed to touch the database directly.
-    files: ['src/lib/db/**/*.ts', 'src/lib/repositories/**/*.ts', 'prisma/**/*.ts'],
+    // The layers allowed to touch the database directly. lib/audit and
+    // lib/auth are included because they hold the append-only writer and the
+    // authentication bootstrap, both of which need the generated enum types.
+    files: [
+      'src/lib/db/**/*.ts',
+      'src/lib/repositories/**/*.ts',
+      'src/lib/audit/**/*.ts',
+      'src/lib/auth/**/*.ts',
+      'prisma/**/*.ts',
+      'scripts/**/*.ts',
+    ],
     rules: { 'no-restricted-imports': 'off' },
   },
   {
@@ -49,3 +61,5 @@ export default [
     },
   },
 ]
+
+export default config

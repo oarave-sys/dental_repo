@@ -177,6 +177,21 @@ CREATE POLICY tenant_isolation ON "sessions"
   );
 
 -- ---------------------------------------------------------------------------
+-- Join table: no organization_id of its own, scoped through its membership.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "membership_roles" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "membership_roles";
+CREATE POLICY tenant_isolation ON "membership_roles"
+  USING (
+    NULLIF(current_setting('app.current_org_id', true), '') IS NULL
+    OR EXISTS (
+      SELECT 1 FROM memberships m
+      WHERE m."id" = "membershipId"
+        AND m."organizationId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid
+    )
+  );
+
+-- ---------------------------------------------------------------------------
 -- Append-only tables. Application discipline is not a guarantee:
 -- docs/OPEN-QUESTIONS.md A-8.
 -- ---------------------------------------------------------------------------

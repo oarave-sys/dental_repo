@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Prisma, PrismaClient } from '@/generated/prisma/client'
 import { AppError } from '@/lib/errors'
@@ -6,18 +5,20 @@ import { AppError } from '@/lib/errors'
 /**
  * Layer 2 of tenant isolation (docs/SECURITY.md §1).
  *
- * Reads and mutations get `organizationId` injected into `where` — TypeScript
- * does not require it there, so forgetting is possible and injection is the
- * protection. Writes must name it explicitly (Prisma's own types insist), and
- * the extension verifies it matches the bound tenant.
+ * Every Prisma operation on a tenant-scoped model has `organizationId` injected
+ * into `where` on reads and mutations. Writes must name it explicitly (Prisma's
+ * own types insist), and the extension verifies it matches the bound tenant —
+ * supplying a different one is rejected rather than silently overridden,
+ * because that combination means a bug worth surfacing.
  *
- * Supplying a *different* organizationId is rejected rather than silently
- * overridden: that combination means a bug worth surfacing, not a value to
- * quietly correct.
+ * The tenant is captured in a CLOSURE over the extended client, not in
+ * ambient async context. That is deliberate and was arrived at the hard way:
+ * Prisma promises are lazy, so with AsyncLocalStorage a call site that returns
+ * a query without awaiting it inside the context would execute after the
+ * context had been popped, and silently see no tenant. A closure cannot drift.
  *
  * The set of scoped models is derived from the schema at runtime, so adding a
- * model to schema.prisma covers it automatically. tests/isolation asserts the
- * derived set matches the tables carrying an RLS policy.
+ * model to schema.prisma covers it automatically.
  */
 
 /** Models carrying an organizationId column, straight from the schema. */
@@ -27,22 +28,29 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set(
     .map((m) => m.name),
 )
 
-interface TenantContext {
-  organizationId: string
-}
-
-const tenantContext = new AsyncLocalStorage<TenantContext>()
-
-export function currentTenant(): string | null {
-  return tenantContext.getStore()?.organizationId ?? null
-}
+/**
+ * Identity models the application must read *in order to* work out which
+ * organization a request belongs to — a session token is looked up before any
+ * tenant is known. They are reachable through `unsafeCrossTenantClient` and are
+ * governed by the BOOTSTRAP row-level-security tier, which mirrors this list.
+ * They hold PII, not PHI, and are reached only by a secret token lookup.
+ */
+export const BOOTSTRAP_MODELS: ReadonlySet<string> = new Set([
+  'Organization',
+  'OrganizationSettings',
+  'Session',
+  'Membership',
+  'Role',
+  'MembershipRole',
+  'Invitation',
+])
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const READ_OPS = new Set([
+const READ_OPS = [
   'findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany',
   'count', 'aggregate', 'groupBy',
-])
+]
 const WHERE_OPS = new Set([...READ_OPS, 'update', 'updateMany', 'delete', 'deleteMany'])
 const DATA_OPS = new Set(['create', 'createMany', 'createManyAndReturn'])
 
@@ -65,25 +73,13 @@ function stampData(data: unknown, organizationId: string): unknown {
   return { ...row, organizationId }
 }
 
-function buildClient(connectionString: string) {
-  const adapter = new PrismaPg({ connectionString })
-  return new PrismaClient({ adapter }).$extends({
+function tenantExtension(organizationId: string) {
+  return Prisma.defineExtension({
     name: 'tenantIsolation',
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
           if (!TENANT_SCOPED_MODELS.has(model)) return query(args)
-
-          const organizationId = currentTenant()
-          if (!organizationId) {
-            // Fails closed. The database would refuse anyway (RLS), but an
-            // error here names the actual bug instead of an empty result set.
-            throw new AppError(
-              'INTERNAL',
-              'Database access attempted outside a tenant context.',
-              { model, operation },
-            )
-          }
 
           let next = args as Record<string, unknown>
           if (WHERE_OPS.has(operation)) next = mergeWhere(next, organizationId)
@@ -101,18 +97,24 @@ function buildClient(connectionString: string) {
   })
 }
 
-export type Db = ReturnType<typeof buildClient>
-export type TenantDb = Omit<Db, '$transaction' | '$connect' | '$disconnect' | '$extends'>
+const globalForDb = globalThis as unknown as { __rawDb?: PrismaClient }
 
-const globalForDb = globalThis as unknown as { __db?: Db }
-
-function baseClient(): Db {
-  if (!globalForDb.__db) {
+function rawClient(): PrismaClient {
+  if (!globalForDb.__rawDb) {
     const url = process.env.DATABASE_URL
     if (!url) throw new AppError('INTERNAL', 'DATABASE_URL is not configured.')
-    globalForDb.__db = buildClient(url)
+    globalForDb.__rawDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
   }
-  return globalForDb.__db
+  return globalForDb.__rawDb
+}
+
+export type TenantDb = Omit<
+  ReturnType<typeof buildTenantClient>,
+  '$transaction' | '$connect' | '$disconnect' | '$extends' | '$on'
+>
+
+function buildTenantClient(organizationId: string) {
+  return rawClient().$extends(tenantExtension(organizationId))
 }
 
 /**
@@ -130,14 +132,10 @@ export async function withTenant<T>(
   if (!UUID.test(organizationId)) {
     throw new AppError('INTERNAL', 'Invalid organization identifier.')
   }
-  return baseClient().$transaction(
+  return buildTenantClient(organizationId).$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT set_config('app.current_org_id', ${organizationId}, true)`
-      // The inner callback must be async and must AWAIT `fn`. Prisma promises
-      // are lazy — a callback that merely returns one lets `run()` exit and pop
-      // the context before the query has started, and the operation then sees
-      // no tenant. Awaiting here keeps execution inside the context.
-      return tenantContext.run({ organizationId }, async () => fn(tx as unknown as TenantDb))
+      return fn(tx as unknown as TenantDb)
     },
     { timeout: options.timeoutMs ?? 15_000, maxWait: 5_000 },
   )
@@ -146,10 +144,15 @@ export async function withTenant<T>(
 /**
  * Unscoped access. Deliberately ugly to type and easy to grep.
  *
- * Legitimate callers: the seeder, migrations, the reference-data importer, the
- * authentication bootstrap (which must resolve a session token *before* any
- * organization is known), and platform administration. Nothing else.
+ * Legitimate callers: the authentication bootstrap (which must resolve a
+ * session token *before* any organization is known), the seeder, migrations,
+ * the reference-data importer, and platform administration. Nothing else.
+ *
+ * This is NOT a way around isolation. The connection is still the application
+ * role, `app.current_org_id` is unset, and every STRICT row-level-security
+ * policy therefore yields zero rows — only the BOOTSTRAP identity tables are
+ * readable through it. A test asserts exactly that.
  */
-export function unsafeCrossTenantClient(): Db {
-  return baseClient()
+export function unsafeCrossTenantClient(): PrismaClient {
+  return rawClient()
 }

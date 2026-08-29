@@ -1,7 +1,8 @@
+import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { withTenant, type TenantDb } from '@/lib/db/client'
 import { requireActor, requestMetadata } from '@/lib/auth/current'
-import { requirePermission, type Actor, type Permission } from '@/lib/authz'
+import { can, requirePermission, type Actor, type Permission } from '@/lib/authz'
 import { writeAudit, type AuditInput } from '@/lib/audit'
 import { logger } from '@/lib/logging/logger'
 import { AppError, isAppError } from '@/lib/errors'
@@ -95,7 +96,16 @@ export async function withAuthorizedQuery<T>(
   fn: (ctx: { actor: Actor; db: TenantDb }) => Promise<T>,
 ): Promise<T> {
   const actor = await requireActor()
-  requirePermission(actor, permission)
+  if (!can(actor, permission)) {
+    // A denial is a normal outcome, not a crash. Send the user somewhere that
+    // says so plainly — and log it, because repeated denials are worth seeing.
+    logger.warn('authz.denied', {
+      userId: actor.userId,
+      organizationId: actor.organizationId,
+      permission,
+    })
+    redirect('/access-denied')
+  }
   return withTenant(actor.organizationId, (db) => fn({ actor, db }))
 }
 

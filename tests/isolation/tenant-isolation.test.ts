@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest'
-import { TENANT_SCOPED_MODELS, withTenant, unsafeCrossTenantClient } from '@/lib/db/client'
+import { TENANT_SCOPED_MODELS, BOOTSTRAP_MODELS, withTenant, unsafeCrossTenantClient } from '@/lib/db/client'
 import { ownerClient, resetDatabase, seedOrg, type SeededOrg } from '../fixtures'
 
 /**
@@ -130,9 +130,86 @@ describe('the database backstop', () => {
     expect(Number(rows[0]!.count)).toBe(0)
   })
 
-  it('throws rather than silently returning nothing when the extension is unbound', async () => {
-    await expect(unsafeCrossTenantClient().patient.findMany({})).rejects.toThrow(
-      /outside a tenant context/i,
+  it('leaves the unscoped client unable to see any PHI at all', async () => {
+    // unsafeCrossTenantClient exists for the auth bootstrap. It is still the
+    // application role with no tenant bound, so row-level security gives it
+    // nothing from any STRICT table — even though both tenants have rows.
+    const raw = unsafeCrossTenantClient()
+    expect(await raw.patient.findMany({})).toHaveLength(0)
+    expect(await raw.referral.findMany({})).toHaveLength(0)
+    expect(await raw.document.findMany({})).toHaveLength(0)
+    expect(await raw.auditLog.findMany({})).toHaveLength(0)
+  })
+
+  it('but can still read the identity tables it needs to resolve a session', async () => {
+    const raw = unsafeCrossTenantClient()
+    const sessions = await raw.membership.findMany({})
+    expect(sessions.length).toBeGreaterThan(0)
+  })
+})
+
+describe('the bootstrap tier', () => {
+  it('matches the tables given the bootstrap row-level-security policy', async () => {
+    // The two lists must agree, or a model is protected at one layer and not
+    // the other. Read the policies straight out of the database rather than
+    // trusting a second copy of the list.
+    const rows = await db.$queryRaw<Array<{ tablename: string; qual: string }>>`
+      SELECT tablename, qual FROM pg_policies WHERE policyname = 'tenant_isolation'
+    `
+    const bootstrapTables = rows
+      .filter((r) => r.qual.includes('IS NULL'))
+      .map((r) => r.tablename)
+      .sort()
+
+    expect(bootstrapTables).toEqual([
+      'invitations', 'membership_roles', 'memberships',
+      'organization_settings', 'organizations', 'roles', 'sessions',
+    ])
+    expect(BOOTSTRAP_MODELS.size).toBe(bootstrapTables.length)
+  })
+
+  it('still scopes bootstrap models once a tenant is bound', async () => {
+    const sessions = await withTenant(alpha.organizationId, (tx) =>
+      tx.role.findMany({}),
     )
+    expect(sessions.every((r) => r.organizationId === alpha.organizationId)).toBe(true)
+  })
+
+  it('names exactly the models the bootstrap policy covers', () => {
+    for (const model of ['Session', 'Membership', 'Role', 'Organization']) {
+      expect(BOOTSTRAP_MODELS.has(model), model).toBe(true)
+    }
+    for (const model of ['Patient', 'Referral', 'Document', 'AuditLog']) {
+      expect(BOOTSTRAP_MODELS.has(model), model).toBe(false)
+    }
+  })
+})
+
+describe('lazy queries', () => {
+  /**
+   * Regression test. An earlier implementation carried the tenant in ambient
+   * async context; because Prisma promises are lazy, a call site that returned
+   * a query without awaiting it inside that context executed after the context
+   * had been popped and silently saw no tenant. The binding is now a closure,
+   * so both call styles must behave identically.
+   */
+  it('binds the tenant whether or not the callback awaits', async () => {
+    const awaited = await withTenant(alpha.organizationId, async (tx) =>
+      tx.patient.findMany({}),
+    )
+    const returned = await withTenant(alpha.organizationId, (tx) =>
+      tx.patient.findMany({}),
+    )
+    expect(awaited).toHaveLength(returned.length)
+    expect(returned.length).toBeGreaterThan(0)
+    expect(returned.every((p) => p.organizationId === alpha.organizationId)).toBe(true)
+  })
+
+  it('binds the tenant through a nested Promise.all', async () => {
+    const [patients, referrals] = await withTenant(alpha.organizationId, (tx) =>
+      Promise.all([tx.patient.findMany({}), tx.referral.findMany({})]),
+    )
+    expect(patients.every((p) => p.organizationId === alpha.organizationId)).toBe(true)
+    expect(referrals.every((r) => r.organizationId === alpha.organizationId)).toBe(true)
   })
 })
