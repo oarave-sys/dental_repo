@@ -1,23 +1,32 @@
 /**
- * Structured logger with a PHI denylist.
+ * Structured logger that refuses to emit clinical input.
  *
- * The rule from docs/SECURITY.md §3 is absolute: no PHI in application logs.
- * Rather than trusting every call site to remember that, this redacts by key
- * name and refuses to serialize anything it does not recognize as safe.
- * tests/guardrails/logging.test.ts pushes a PHI-laden fixture through this and
- * fails if any value survives.
+ * Users are told not to enter patient identifiers, but a log is the wrong
+ * place to find out they did anyway. Rather than trusting every call site to
+ * remember, this redacts by key name and will not serialise anything it does
+ * not recognise as safe. Unkeyed free text is never emitted at all.
+ *
+ * tests/guardrails/logging.test.ts pushes a fixture full of clinical text and
+ * identifiers through this and fails if any value survives.
  */
 type Level = 'debug' | 'info' | 'warn' | 'error'
 
-/** Field names that may carry PHI or credentials. Redacted, never emitted. */
+/**
+ * Field names that may carry clinical input, patient identifiers or
+ * credentials. Redacted, never emitted.
+ */
 const DENY = new Set([
+  // Identity a user might paste in despite the warning.
   'firstname', 'lastname', 'name', 'patientname', 'dateofbirth', 'dob', 'sex',
-  'phone', 'phoneprimary', 'phonesecondary', 'email', 'address', 'addressline1',
-  'addressline2', 'city', 'postalcode', 'zip', 'mrn', 'memberid', 'ssn',
-  'diagnosis', 'referraldiagnosistext', 'notes', 'note', 'reason', 'snippet',
-  'text', 'filename', 'filenameoriginal', 'password', 'passwordhash', 'token',
-  'tokenhash', 'secret', 'mfasecret', 'mfasecretencrypted', 'authorization',
-  'cookie', 'body', 'query', 'searchterm', 'q',
+  'phone', 'email', 'address', 'addressline1', 'addressline2', 'city',
+  'postalcode', 'zip', 'mrn', 'memberid', 'subscriberid', 'ssn',
+  // Clinical input and anything derived from it verbatim.
+  'inputtext', 'input', 'description', 'clinicalnote', 'note', 'notes',
+  'narrative', 'answer', 'question', 'content', 'text', 'reason', 'reasons',
+  'snippet', 'prompt', 'completion', 'facts', 'result', 'diagnosis',
+  // Credentials.
+  'password', 'passwordhash', 'token', 'tokenhash', 'secret', 'apikey',
+  'authorization', 'cookie', 'body', 'query', 'searchterm', 'q',
 ])
 
 const REDACTED = '[redacted]'

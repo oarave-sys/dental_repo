@@ -14,10 +14,9 @@ coverage/
 *.log
 npm-debug.log*
 
-# Never commit real or sample clinical documents
-/storage/
-/uploads/
-*.local.pdf
-
 # Generated Prisma client
 /src/generated/
+
+# Licensed procedure-code datasets are never committed. Only the demo dataset
+# in data/demo-dataset/ belongs in this repository.
+/data/licensed/

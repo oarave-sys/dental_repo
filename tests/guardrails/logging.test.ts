@@ -1,81 +1,65 @@
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { logger } from '@/lib/logging/logger'
 
 /**
- * The rule from docs/SECURITY.md §3 is absolute: no PHI in application logs.
- * This pushes a PHI-laden fixture through the logger and fails if any value
- * survives — so the rule is enforced by CI rather than by memory.
+ * Users are told not to enter patient identifiers. A log is the wrong place to
+ * discover that somebody did it anyway, so the logger refuses to emit anything
+ * it is not sure about. This test pushes a deliberately awful payload through
+ * it and fails if any of it survives.
  */
-const PHI = {
-  firstName: 'Eleanor',
-  lastName: 'Vance',
-  dateOfBirth: '1954-03-12',
-  phonePrimary: '555-0201',
-  email: 'eleanor.vance@example.com',
-  addressLine1: '14 Willow Lane',
-  mrn: 'MRN-004821',
-  memberId: 'MBR100001',
-  diagnosis: 'Seropositive rheumatoid arthritis',
-  notes: 'Patient reports morning stiffness lasting two hours.',
-  filenameOriginal: 'VANCE_ELEANOR_031254.pdf',
-  password: 'correct-horse-battery-staple',
-  tokenHash: 'deadbeef',
-}
+describe('the logger refuses clinical input and identifiers', () => {
+  const payload = {
+    organizationId: 'org-123',
+    tool: 'FIND_CODE',
+    durationMs: 42,
+    codeCount: 2,
+    // None of the following may ever appear in a log line.
+    inputText: 'MOD composite #30 for Jane Smith DOB 01/02/1970',
+    note: 'Patient reported pain in the lower left quadrant',
+    patientName: 'Jane Smith',
+    dob: '1970-01-02',
+    memberId: 'MEM-99887',
+    email: 'jane@example.com',
+    password: 'hunter2hunter2',
+    apiKey: 'sk-ant-secret',
+    nested: {
+      description: 'existing amalgam removed, recurrent decay',
+      diagnosis: 'irreversible pulpitis',
+    },
+  }
 
-const FORBIDDEN = Object.values(PHI)
+  const scrubbed = JSON.stringify(logger._scrub(payload))
 
-afterEach(() => vi.restoreAllMocks())
+  it('keeps the non-identifying operational fields', () => {
+    expect(scrubbed).toContain('org-123')
+    expect(scrubbed).toContain('FIND_CODE')
+    expect(scrubbed).toContain('42')
+  })
 
-function capture(fn: () => void): string {
-  const lines: string[] = []
-  vi.spyOn(console, 'log').mockImplementation((l) => lines.push(String(l)))
-  vi.spyOn(console, 'warn').mockImplementation((l) => lines.push(String(l)))
-  vi.spyOn(console, 'error').mockImplementation((l) => lines.push(String(l)))
-  fn()
-  return lines.join('\n')
-}
-
-describe('the logger', () => {
-  it('emits no PHI value, at any nesting depth', () => {
-    const output = capture(() => {
-      logger.info('referral.viewed', {
-        referralId: 'b1faecf0-e313-4d6a-a128-33cc4c78cb3e',
-        patient: PHI,
-        nested: { deeper: { alsoPatient: PHI } },
-        list: [PHI],
-      })
-    })
-    for (const value of FORBIDDEN) {
-      expect(output, `leaked: ${value}`).not.toContain(value)
+  it('drops every clinical and identifying value', () => {
+    for (const secret of [
+      'Jane Smith',
+      '01/02/1970',
+      '1970-01-02',
+      'MEM-99887',
+      'jane@example.com',
+      'hunter2hunter2',
+      'sk-ant-secret',
+      'lower left quadrant',
+      'recurrent decay',
+      'irreversible pulpitis',
+      'MOD composite',
+    ]) {
+      expect(scrubbed, `leaked: ${secret}`).not.toContain(secret)
     }
   })
 
-  it('still emits the identifiers that make a log useful', () => {
-    const output = capture(() => {
-      logger.warn('action.rejected', {
-        referralId: 'b1faecf0-e313-4d6a-a128-33cc4c78cb3e',
-        organizationId: '11111111-1111-1111-1111-111111111111',
-        code: 'FORBIDDEN',
-        attempt: 3,
-        blocked: true,
-      })
-    })
-    expect(output).toContain('b1faecf0-e313-4d6a-a128-33cc4c78cb3e')
-    expect(output).toContain('FORBIDDEN')
-    expect(output).toContain('"attempt":3')
-    expect(output).toContain('"blocked":true')
+  it('redacts unkeyed free text rather than emitting it', () => {
+    expect(logger._scrub('some free text')).toBe('[redacted]')
   })
 
-  it('redacts unkeyed free text rather than trusting it', () => {
-    expect(logger._scrub('Patient reports chest pain')).toBe('[redacted]')
-    expect(logger._scrub('anything', 'code')).toBe('anything')
-  })
-
-  it('emits valid JSON with a level and a timestamp', () => {
-    const output = capture(() => logger.error('boom', { code: 'INTERNAL' }))
-    const parsed = JSON.parse(output)
-    expect(parsed.level).toBe('error')
-    expect(parsed.event).toBe('boom')
-    expect(typeof parsed.ts).toBe('string')
+  it('redacts values of unrecognised object shapes', () => {
+    const out = JSON.stringify(logger._scrub({ weird: new Map([['a', 'b']]) }))
+    expect(out).not.toContain('a')
   })
 })

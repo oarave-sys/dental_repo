@@ -2,15 +2,16 @@ import crypto from 'node:crypto'
 import { AppError } from '@/lib/errors'
 
 /**
- * Application-level encryption for the few secrets that must be reversible.
+ * Application-level encryption for values that must be reversible.
  *
- * Today that is the TOTP shared secret: verifying a code requires the original
- * value, so it cannot be hashed. Passwords are hashed with Argon2id and are
- * never handled here.
+ * Nothing in the MVP requires it — passwords are hashed with Argon2id and
+ * session, invitation and reset tokens are HMACed, none of which round-trip.
+ * It is kept because the first reversible secret (a stored integration
+ * credential) should not arrive alongside a hand-rolled cipher.
  *
- * In production this key belongs in AWS KMS with envelope encryption. Deriving
- * it from SESSION_SECRET is a development convenience and is called out in the
- * Phase 9 hardening list.
+ * In production this key belongs in a KMS with envelope encryption. Deriving
+ * it from SESSION_SECRET is a development convenience, listed in the
+ * pre-production hardening steps in the README.
  */
 function key(): Buffer {
   const secret = process.env.SESSION_SECRET
@@ -55,7 +56,7 @@ export function randomToken(bytes = 32): string {
   return crypto.randomBytes(bytes).toString('base64url')
 }
 
-/** IP addresses are identifiers; the audit log stores a hash, not the address. */
+/** IP addresses are identifiers; sessions store a hash, not the address. */
 export function hashIp(ip: string | null | undefined): string | null {
   if (!ip) return null
   return crypto

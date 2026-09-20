@@ -3,7 +3,7 @@ import { Prisma, PrismaClient } from '@/generated/prisma/client'
 import { AppError } from '@/lib/errors'
 
 /**
- * Layer 2 of tenant isolation (docs/SECURITY.md §1).
+ * Layer 2 of tenant isolation (docs/SECURITY.md).
  *
  * Every Prisma operation on a tenant-scoped model has `organizationId` injected
  * into `where` on reads and mutations. Writes must name it explicitly (Prisma's
@@ -33,16 +33,31 @@ export const TENANT_SCOPED_MODELS: ReadonlySet<string> = new Set(
  * organization a request belongs to — a session token is looked up before any
  * tenant is known. They are reachable through `unsafeCrossTenantClient` and are
  * governed by the BOOTSTRAP row-level-security tier, which mirrors this list.
- * They hold PII, not PHI, and are reached only by a secret token lookup.
+ * They hold account PII, not clinical content, and are reached only by a
+ * secret token lookup.
  */
 export const BOOTSTRAP_MODELS: ReadonlySet<string> = new Set([
   'Organization',
-  'OrganizationSettings',
+  'User',
   'Session',
   'Membership',
-  'Role',
-  'MembershipRole',
   'Invitation',
+  'PasswordResetToken',
+])
+
+/**
+ * Procedure-code reference data. Global rather than tenant-scoped: every
+ * practice codes against the same approved dataset. Readable by any
+ * authenticated tenant, writable only by the importer running as the owner
+ * role. These models carry no organizationId, so the tenant extension leaves
+ * them alone by construction.
+ */
+export const REFERENCE_MODELS: ReadonlySet<string> = new Set([
+  'CodeDataset',
+  'ProcedureCode',
+  'ProcedureCodeAttribute',
+  'ProcedureCodeRelationship',
+  'DocumentationRule',
 ])
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -122,7 +137,8 @@ function buildTenantClient(organizationId: string) {
  * and PostgreSQL's `app.current_org_id` for the row-level-security policies.
  *
  * The transaction is what scopes `set_config(..., true)` — that is why every
- * request pays for one. See docs/ARCHITECTURE.md R-2 for the trade-off.
+ * request pays for one. Every request pays for one transaction; at this scale that is cheap
+ * insurance against a missing tenant filter.
  */
 export async function withTenant<T>(
   organizationId: string,
@@ -145,8 +161,9 @@ export async function withTenant<T>(
  * Unscoped access. Deliberately ugly to type and easy to grep.
  *
  * Legitimate callers: the authentication bootstrap (which must resolve a
- * session token *before* any organization is known), the seeder, migrations,
- * the reference-data importer, and platform administration. Nothing else.
+ * session token *before* any organization is known), sign-up (which creates
+ * the organization it will then be scoped to), the seeder, the reference-data
+ * importer, and the platform admin area. Nothing else.
  *
  * This is NOT a way around isolation. The connection is still the application
  * role, `app.current_org_id` is unset, and every STRICT row-level-security

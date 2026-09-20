@@ -3,10 +3,10 @@ import path from 'node:path'
 import { defineConfig } from 'prisma/config'
 
 /**
- * Migrations run as `referral_owner` (DDL rights). The application itself
- * connects as `referral_app`, which is NOT a superuser and does NOT have
- * BYPASSRLS — that is what makes row-level security a real backstop.
- * See docs/SECURITY.md §1, Layer 3.
+ * Migrations run with DDL rights (DIRECT_DATABASE_URL). The application itself
+ * connects as a role that is NOT a superuser and does NOT have BYPASSRLS —
+ * that is what makes row-level security a real backstop rather than decoration.
+ * See docs/SECURITY.md.
  */
 export default defineConfig({
   schema: path.join('prisma', 'schema.prisma'),

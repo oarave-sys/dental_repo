@@ -1,0 +1,3170 @@
+{
+  "key": "demo-general-dentistry",
+  "name": "Demo dataset — General Dentistry (sample data, not for production use)",
+  "kind": "DEMO",
+  "sourceNote": "SAMPLE DATA FOR DEVELOPMENT ONLY. Code numbers are short factual identifiers. All descriptive text in this file was written independently for this application and is NOT the official CDT descriptor set. No official descriptor text is included: the officialDescriptor field is absent from every entry and is populated only by a licensed import. CDT is maintained by the American Dental Association; using official CDT content commercially requires a license from the ADA.",
+  "codes": [
+    {
+      "code": "D0120",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Evaluations",
+      "shortLabel": "Periodic oral evaluation — established patient",
+      "plainLanguage": "The routine re-examination of a patient already of record, typically done at a recall visit.",
+      "commonUse": "Used at recall visits for a patient the practice has seen before and whose history is on file.",
+      "distinctions": "Differs from a comprehensive evaluation, which is for a new patient or a patient being re-established after a long gap. Differs from a limited evaluation, which addresses a specific problem.",
+      "documentationConsiderations": [
+        "Whether the patient is of record",
+        "Date of the previous evaluation",
+        "Findings of the examination"
+      ],
+      "verifyQuestions": [
+        "Has this patient been examined by this practice before?",
+        "Was this a routine recall visit rather than a specific complaint?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "periodic_oral_evaluation",
+          "oral_evaluation_unspecified"
+        ],
+        "evaluation_type": "periodic",
+        "patient_status": "established",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D0150",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Comprehensive evaluation is for a new patient or re-established patient rather than a routine recall."
+        },
+        {
+          "to": "D0140",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A limited evaluation addresses a specific problem rather than a periodic review."
+        }
+      ]
+    },
+    {
+      "code": "D0140",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Evaluations",
+      "shortLabel": "Limited oral evaluation — problem focused",
+      "plainLanguage": "An examination directed at a specific problem or complaint rather than a general review of the mouth.",
+      "commonUse": "Used for emergency or problem visits, such as a patient presenting with pain or a fractured tooth.",
+      "distinctions": "Distinguished by scope: it addresses the presenting problem, not the whole dentition. It is not the routine recall examination.",
+      "documentationConsiderations": [
+        "The specific problem or complaint that prompted the visit",
+        "Findings relating to that problem",
+        "Treatment or advice provided"
+      ],
+      "verifyQuestions": [
+        "Was this visit prompted by a specific complaint or problem?",
+        "Was the examination limited to that problem rather than a full review?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "limited_oral_evaluation",
+          "oral_evaluation_unspecified"
+        ],
+        "evaluation_type": "limited",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D0120",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A periodic evaluation is the routine recall review rather than a problem-focused visit."
+        }
+      ]
+    },
+    {
+      "code": "D0150",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Evaluations",
+      "shortLabel": "Comprehensive oral evaluation — new or established patient",
+      "plainLanguage": "A thorough evaluation and recording of the whole mouth, including hard and soft tissues.",
+      "commonUse": "Used for a new patient, or for an existing patient being re-evaluated after a significant absence or change in health status.",
+      "distinctions": "Broader than a periodic evaluation. Where a practice uses it for a returning patient, the reason for a comprehensive rather than periodic review matters.",
+      "documentationConsiderations": [
+        "Whether the patient is new to the practice",
+        "Extent of the examination performed",
+        "Charting of existing conditions"
+      ],
+      "verifyQuestions": [
+        "Is this a new patient, or an established patient being comprehensively re-evaluated?",
+        "What prompted a comprehensive rather than periodic evaluation?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "comprehensive_oral_evaluation",
+          "oral_evaluation_unspecified"
+        ],
+        "evaluation_type": "comprehensive",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D0120",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Periodic evaluation is the routine recall review for a patient of record."
+        }
+      ]
+    },
+    {
+      "code": "D0210",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Intraoral complete series of radiographic images",
+      "plainLanguage": "A complete intraoral radiographic survey of the dentition and surrounding structures.",
+      "commonUse": "Used at a comprehensive examination, typically at intervals set by the practice's radiographic protocol.",
+      "distinctions": "A complete series is a defined set of images. Taking several periapicals and bitewings at one visit is not automatically a complete series.",
+      "documentationConsiderations": [
+        "Number and type of images captured",
+        "Date of the previous complete series",
+        "Clinical reason the series was indicated"
+      ],
+      "verifyQuestions": [
+        "How many images were taken, and of what type?",
+        "Does this meet your protocol's definition of a complete series?"
+      ],
+      "attributes": {
+        "procedure_kind": "full_mouth_series",
+        "imaging": "true",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D0330",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A panoramic image is a single extraoral image, not an intraoral series."
+        }
+      ]
+    },
+    {
+      "code": "D0220",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Intraoral periapical — first radiographic image",
+      "plainLanguage": "The first periapical image taken at a visit. A periapical shows the whole tooth including the root tip and surrounding bone.",
+      "commonUse": "Used when the root or surrounding bone must be seen, such as for pain, trauma, or endodontic assessment.",
+      "distinctions": "The first periapical at a visit is reported differently from each additional one. Count the images actually taken.",
+      "documentationConsiderations": [
+        "Number of periapical images taken",
+        "Teeth or areas imaged",
+        "Clinical reason for the image"
+      ],
+      "verifyQuestions": [
+        "How many periapical images were taken at this visit?",
+        "Which tooth or area was imaged?"
+      ],
+      "attributes": {
+        "procedure_kind": "periapical_radiograph",
+        "imaging": "true",
+        "image_sequence": "first",
+        "image_count": "1"
+      },
+      "relationships": [
+        {
+          "to": "D0230",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Each additional periapical at the same visit is reported separately."
+        }
+      ]
+    },
+    {
+      "code": "D0230",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Intraoral periapical — each additional radiographic image",
+      "plainLanguage": "Each periapical image beyond the first taken at the same visit.",
+      "commonUse": "Reported alongside the first periapical when more than one is taken.",
+      "distinctions": "Reported per additional image. The number reported should match the number of images actually captured.",
+      "documentationConsiderations": [
+        "Total number of periapical images taken",
+        "Teeth or areas imaged"
+      ],
+      "verifyQuestions": [
+        "How many periapical images beyond the first were taken?"
+      ],
+      "attributes": {
+        "procedure_kind": "periapical_radiograph",
+        "imaging": "true",
+        "image_sequence": "additional"
+      },
+      "relationships": [
+        {
+          "to": "D0220",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "The first periapical at the visit is reported with its own code."
+        }
+      ]
+    },
+    {
+      "code": "D0272",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Bitewings — two radiographic images",
+      "plainLanguage": "Two bitewing images, which show the crowns of upper and lower teeth in the same view.",
+      "commonUse": "Used to check for interproximal decay and bone levels, commonly at recall visits.",
+      "distinctions": "Bitewing codes are distinguished by the number of images taken. Two, three, four and vertical series are each reported differently.",
+      "documentationConsiderations": [
+        "Number of bitewing images taken",
+        "Clinical reason for the images"
+      ],
+      "verifyQuestions": [
+        "How many bitewing images were taken?",
+        "Were they horizontal or vertical bitewings?"
+      ],
+      "attributes": {
+        "procedure_kind": "bitewing_radiographs",
+        "imaging": "true",
+        "image_count": "2",
+        "bitewing_orientation": "horizontal"
+      },
+      "relationships": [
+        {
+          "to": "D0274",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Four bitewing images are reported with a different code than two."
+        }
+      ]
+    },
+    {
+      "code": "D0274",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Bitewings — four radiographic images",
+      "plainLanguage": "Four bitewing images, the most common bitewing set for an adult dentition.",
+      "commonUse": "The usual recall bitewing set where posterior teeth are present in all four quadrants.",
+      "distinctions": "Distinguished from the two-image and vertical bitewing codes purely by the number and type of images taken.",
+      "documentationConsiderations": [
+        "Number of bitewing images taken",
+        "Clinical reason for the images"
+      ],
+      "verifyQuestions": [
+        "How many bitewing images were taken?",
+        "Were they horizontal or vertical bitewings?"
+      ],
+      "attributes": {
+        "procedure_kind": "bitewing_radiographs",
+        "imaging": "true",
+        "image_count": "4",
+        "bitewing_orientation": "horizontal"
+      },
+      "relationships": [
+        {
+          "to": "D0272",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Two bitewing images are reported with a different code than four."
+        },
+        {
+          "to": "D0277",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Vertical bitewings of seven to eight images are reported separately."
+        }
+      ]
+    },
+    {
+      "code": "D0273",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Bitewings — three radiographic images",
+      "plainLanguage": "Three bitewing images.",
+      "commonUse": "Used where three images cover the posterior contacts present, often in a mixed or reduced dentition.",
+      "distinctions": "Chosen by image count alone.",
+      "documentationConsiderations": [
+        "Number of bitewing images taken"
+      ],
+      "verifyQuestions": [
+        "How many bitewing images were taken?"
+      ],
+      "attributes": {
+        "procedure_kind": "bitewing_radiographs",
+        "imaging": "true",
+        "image_count": "3",
+        "bitewing_orientation": "horizontal"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D0277",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Vertical bitewings — seven to eight radiographic images",
+      "plainLanguage": "A vertical bitewing series of seven or eight images, which shows more bone height than horizontal bitewings.",
+      "commonUse": "Often used where periodontal bone levels need to be assessed.",
+      "distinctions": "Distinguished from horizontal bitewings by orientation and image count. It is not a substitute for a complete series.",
+      "documentationConsiderations": [
+        "Number of images taken",
+        "That the images were vertical bitewings",
+        "Clinical reason, such as periodontal assessment"
+      ],
+      "verifyQuestions": [
+        "Were these vertical rather than horizontal bitewings?",
+        "How many images were taken?"
+      ],
+      "attributes": {
+        "procedure_kind": "bitewing_radiographs",
+        "imaging": "true",
+        "image_count": "7",
+        "bitewing_orientation": "vertical"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D0330",
+      "category": "DIAGNOSTIC",
+      "subcategory": "Radiographs",
+      "shortLabel": "Panoramic radiographic image",
+      "plainLanguage": "A single extraoral image showing both arches and surrounding structures in one view.",
+      "commonUse": "Used for a broad survey, such as assessing third molars, pathology, or before surgical planning.",
+      "distinctions": "A panoramic image is not an intraoral complete series and does not show interproximal detail as well as bitewings.",
+      "documentationConsiderations": [
+        "Clinical reason for the panoramic image",
+        "Findings from the image"
+      ],
+      "verifyQuestions": [
+        "Why was a panoramic image indicated at this visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "panoramic_radiograph",
+        "imaging": "true",
+        "image_count": "1",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D0210",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "An intraoral complete series is a set of intraoral images rather than one extraoral image."
+        }
+      ]
+    },
+    {
+      "code": "D1110",
+      "category": "PREVENTIVE",
+      "subcategory": "Prophylaxis",
+      "shortLabel": "Prophylaxis — adult",
+      "plainLanguage": "Removal of plaque, calculus and stain from the teeth, for a patient with an adult dentition.",
+      "commonUse": "The routine cleaning at a recall visit for an adult patient.",
+      "distinctions": "Separated from the child prophylaxis code by dentition rather than by a fixed birthday. It is also distinct from periodontal maintenance, which follows active periodontal therapy, and from scaling in the presence of inflammation.",
+      "documentationConsiderations": [
+        "That the dentition is adult (permanent)",
+        "Periodontal status, which affects whether a prophylaxis or periodontal procedure applies"
+      ],
+      "verifyQuestions": [
+        "Is the patient's dentition permanent (adult) or primary/transitional (child)?",
+        "Has the patient had active periodontal therapy, which may make periodontal maintenance the appropriate service?"
+      ],
+      "attributes": {
+        "procedure_kind": "prophylaxis",
+        "age_band": "adult",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D1120",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "The child prophylaxis code applies to a primary or transitional dentition."
+        },
+        {
+          "to": "D4910",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Periodontal maintenance follows active periodontal therapy and is a different service."
+        },
+        {
+          "to": "D4346",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Scaling in the presence of generalised inflammation is a separate service from a routine prophylaxis."
+        }
+      ]
+    },
+    {
+      "code": "D1120",
+      "category": "PREVENTIVE",
+      "subcategory": "Prophylaxis",
+      "shortLabel": "Prophylaxis — child",
+      "plainLanguage": "Removal of plaque, calculus and stain for a patient with a primary or transitional dentition.",
+      "commonUse": "The routine cleaning at a recall visit for a child.",
+      "distinctions": "Chosen by dentition rather than age alone. A patient with a fully permanent dentition is generally reported with the adult code.",
+      "documentationConsiderations": [
+        "That the dentition is primary or transitional"
+      ],
+      "verifyQuestions": [
+        "Is the patient's dentition primary or transitional rather than fully permanent?"
+      ],
+      "attributes": {
+        "procedure_kind": "prophylaxis",
+        "age_band": "child",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D1110",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "The adult prophylaxis code applies to a permanent dentition."
+        }
+      ]
+    },
+    {
+      "code": "D1206",
+      "category": "PREVENTIVE",
+      "subcategory": "Fluoride",
+      "shortLabel": "Topical application of fluoride varnish",
+      "plainLanguage": "Application of fluoride in varnish form to the teeth.",
+      "commonUse": "The usual fluoride application at a preventive visit, for children and for adults at elevated caries risk.",
+      "distinctions": "Separated from other topical fluoride forms (gel, foam, rinse) by the form applied. The note should say which was used.",
+      "documentationConsiderations": [
+        "The form of fluoride applied (varnish)",
+        "Caries risk or other reason for application"
+      ],
+      "verifyQuestions": [
+        "Was the fluoride applied as a varnish, or as a gel or foam?"
+      ],
+      "attributes": {
+        "procedure_kind": "fluoride_treatment",
+        "fluoride_form": "varnish",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D1208",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Topical fluoride in a form other than varnish is reported separately."
+        }
+      ]
+    },
+    {
+      "code": "D1208",
+      "category": "PREVENTIVE",
+      "subcategory": "Fluoride",
+      "shortLabel": "Topical application of fluoride — excluding varnish",
+      "plainLanguage": "Application of topical fluoride in a form other than varnish, such as a gel or foam.",
+      "commonUse": "Used where fluoride is delivered by tray or direct application rather than as a varnish.",
+      "distinctions": "The distinguishing fact is simply the form of fluoride used.",
+      "documentationConsiderations": [
+        "The form of fluoride applied",
+        "Caries risk or other reason for application"
+      ],
+      "verifyQuestions": [
+        "Was the fluoride applied as a gel or foam rather than a varnish?"
+      ],
+      "attributes": {
+        "procedure_kind": "fluoride_treatment",
+        "fluoride_form": "gel_or_foam",
+        "per_visit": "true"
+      },
+      "relationships": [
+        {
+          "to": "D1206",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Fluoride varnish is reported with its own code."
+        }
+      ]
+    },
+    {
+      "code": "D1351",
+      "category": "PREVENTIVE",
+      "subcategory": "Sealants",
+      "shortLabel": "Sealant — per tooth",
+      "plainLanguage": "A sealant placed in the pits and fissures of a tooth to prevent decay.",
+      "commonUse": "Most often placed on permanent molars shortly after eruption.",
+      "distinctions": "Reported per tooth, so the teeth sealed must be identified. A sealant is preventive: a tooth that already required a restoration is a different service.",
+      "documentationConsiderations": [
+        "Each tooth sealed",
+        "That the tooth surface was sound rather than restored"
+      ],
+      "verifyQuestions": [
+        "Which teeth were sealed?",
+        "Were the surfaces free of decay requiring restoration?"
+      ],
+      "attributes": {
+        "procedure_kind": "sealant",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D2140",
+      "category": "RESTORATIVE",
+      "subcategory": "Amalgam restorations",
+      "shortLabel": "Amalgam restoration — one surface",
+      "plainLanguage": "An amalgam (silver) filling involving one tooth surface.",
+      "commonUse": "Used where amalgam is the restorative material placed, in either a primary or permanent tooth.",
+      "distinctions": "The amalgam family is separated purely by the number of surfaces restored. Counting the surfaces documented in the note is what selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was amalgam"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "amalgam_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "amalgam",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "1",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2150",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2160",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2161",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2391",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Same surface count but a different restorative material."
+        }
+      ]
+    },
+    {
+      "code": "D2150",
+      "category": "RESTORATIVE",
+      "subcategory": "Amalgam restorations",
+      "shortLabel": "Amalgam restoration — two surfaces",
+      "plainLanguage": "An amalgam (silver) filling involving two tooth surfaces.",
+      "commonUse": "Used where amalgam is the restorative material placed, in either a primary or permanent tooth.",
+      "distinctions": "The amalgam family is separated purely by the number of surfaces restored. Counting the surfaces documented in the note is what selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was amalgam"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "amalgam_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "amalgam",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "2",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2140",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2160",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2161",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2392",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Same surface count but a different restorative material."
+        }
+      ]
+    },
+    {
+      "code": "D2160",
+      "category": "RESTORATIVE",
+      "subcategory": "Amalgam restorations",
+      "shortLabel": "Amalgam restoration — three surfaces",
+      "plainLanguage": "An amalgam (silver) filling involving three tooth surfaces.",
+      "commonUse": "Used where amalgam is the restorative material placed, in either a primary or permanent tooth.",
+      "distinctions": "The amalgam family is separated purely by the number of surfaces restored. Counting the surfaces documented in the note is what selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was amalgam"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "amalgam_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "amalgam",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "3",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2140",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2150",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2161",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2393",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Same surface count but a different restorative material."
+        }
+      ]
+    },
+    {
+      "code": "D2161",
+      "category": "RESTORATIVE",
+      "subcategory": "Amalgam restorations",
+      "shortLabel": "Amalgam restoration — four or more surfaces",
+      "plainLanguage": "An amalgam (silver) filling involving four or more tooth surfaces.",
+      "commonUse": "Used where amalgam is the restorative material placed, in either a primary or permanent tooth.",
+      "distinctions": "The amalgam family is separated purely by the number of surfaces restored. Counting the surfaces documented in the note is what selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was amalgam"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "amalgam_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "amalgam",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "4",
+        "surface_count_min": "4",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2140",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2150",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2160",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        }
+      ]
+    },
+    {
+      "code": "D2330",
+      "category": "RESTORATIVE",
+      "subcategory": "Anterior composite restorations",
+      "shortLabel": "Composite restoration, anterior — one surface",
+      "plainLanguage": "A tooth-coloured composite filling on an anterior tooth involving one surface.",
+      "commonUse": "Used for composite restorations on incisors and canines.",
+      "distinctions": "Anterior and posterior composites are separate families. The tooth number decides which family applies, and the surface count decides which code within it.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "1",
+        "tooth_region": "anterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2331",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2332",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2335",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        }
+      ]
+    },
+    {
+      "code": "D2331",
+      "category": "RESTORATIVE",
+      "subcategory": "Anterior composite restorations",
+      "shortLabel": "Composite restoration, anterior — two surfaces",
+      "plainLanguage": "A tooth-coloured composite filling on an anterior tooth involving two surfaces.",
+      "commonUse": "Used for composite restorations on incisors and canines.",
+      "distinctions": "Anterior and posterior composites are separate families. The tooth number decides which family applies, and the surface count decides which code within it.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "2",
+        "tooth_region": "anterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2330",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2332",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2335",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        }
+      ]
+    },
+    {
+      "code": "D2332",
+      "category": "RESTORATIVE",
+      "subcategory": "Anterior composite restorations",
+      "shortLabel": "Composite restoration, anterior — three surfaces",
+      "plainLanguage": "A tooth-coloured composite filling on an anterior tooth involving three surfaces.",
+      "commonUse": "Used for composite restorations on incisors and canines.",
+      "distinctions": "Anterior and posterior composites are separate families. The tooth number decides which family applies, and the surface count decides which code within it.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "3",
+        "tooth_region": "anterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2330",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2331",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2335",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        }
+      ]
+    },
+    {
+      "code": "D2335",
+      "category": "RESTORATIVE",
+      "subcategory": "Anterior composite restorations",
+      "shortLabel": "Composite restoration, anterior — four or more surfaces",
+      "plainLanguage": "A tooth-coloured composite filling on an anterior tooth involving four or more surfaces. This code also covers a restoration involving the incisal angle.",
+      "commonUse": "Used for composite restorations on incisors and canines.",
+      "distinctions": "Anterior and posterior composites are separate families. The tooth number decides which family applies, and the surface count decides which code within it.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "4",
+        "surface_count_min": "4",
+        "tooth_region": "anterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2330",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2331",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2332",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        }
+      ]
+    },
+    {
+      "code": "D2391",
+      "category": "RESTORATIVE",
+      "subcategory": "Posterior composite restorations",
+      "shortLabel": "Composite restoration, posterior — one surface",
+      "plainLanguage": "A tooth-coloured composite filling on a posterior tooth involving one surface.",
+      "commonUse": "Used for composite restorations on premolars and molars.",
+      "distinctions": "Posterior composites are a separate family from anterior composites, and separate again from amalgam. Within the family the documented surface count selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "1",
+        "tooth_region": "posterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2392",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2393",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2394",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2140",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Same surface count but a different restorative material."
+        }
+      ]
+    },
+    {
+      "code": "D2392",
+      "category": "RESTORATIVE",
+      "subcategory": "Posterior composite restorations",
+      "shortLabel": "Composite restoration, posterior — two surfaces",
+      "plainLanguage": "A tooth-coloured composite filling on a posterior tooth involving two surfaces.",
+      "commonUse": "Used for composite restorations on premolars and molars.",
+      "distinctions": "Posterior composites are a separate family from anterior composites, and separate again from amalgam. Within the family the documented surface count selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "2",
+        "tooth_region": "posterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2391",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2393",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2394",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2150",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Same surface count but a different restorative material."
+        }
+      ]
+    },
+    {
+      "code": "D2393",
+      "category": "RESTORATIVE",
+      "subcategory": "Posterior composite restorations",
+      "shortLabel": "Composite restoration, posterior — three surfaces",
+      "plainLanguage": "A tooth-coloured composite filling on a posterior tooth involving three surfaces.",
+      "commonUse": "Used for composite restorations on premolars and molars.",
+      "distinctions": "Posterior composites are a separate family from anterior composites, and separate again from amalgam. Within the family the documented surface count selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "3",
+        "tooth_region": "posterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2391",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2392",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2394",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2160",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Same surface count but a different restorative material."
+        }
+      ]
+    },
+    {
+      "code": "D2394",
+      "category": "RESTORATIVE",
+      "subcategory": "Posterior composite restorations",
+      "shortLabel": "Composite restoration, posterior — four or more surfaces",
+      "plainLanguage": "A tooth-coloured composite filling on a posterior tooth involving four or more surfaces.",
+      "commonUse": "Used for composite restorations on premolars and molars.",
+      "distinctions": "Posterior composites are a separate family from anterior composites, and separate again from amalgam. Within the family the documented surface count selects the code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Each surface restored",
+        "That the material was composite"
+      ],
+      "verifyQuestions": [
+        "Which tooth was restored?",
+        "Which surfaces were involved?"
+      ],
+      "attributes": {
+        "procedure_kind": [
+          "composite_restoration",
+          "restoration_unspecified"
+        ],
+        "material": "composite",
+        "requires_tooth": "true",
+        "requires_surfaces": "true",
+        "surface_count": "4",
+        "surface_count_min": "4",
+        "tooth_region": "posterior",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2391",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2392",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        },
+        {
+          "to": "D2393",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure, different documented surface count."
+        }
+      ]
+    },
+    {
+      "code": "D2740",
+      "category": "RESTORATIVE",
+      "subcategory": "Single crowns",
+      "shortLabel": "Crown — porcelain/ceramic",
+      "plainLanguage": "A full-coverage crown made entirely of porcelain or ceramic.",
+      "commonUse": "Used where a tooth needs full-coverage restoration, such as after fracture, extensive decay, or root canal therapy.",
+      "distinctions": "Crown codes are separated by the material and, for metal-containing crowns, by the metal classification. The laboratory prescription or invoice is usually what establishes the metal class.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Crown material",
+        "For metal-containing crowns, the metal classification",
+        "Reason full coverage was indicated"
+      ],
+      "verifyQuestions": [
+        "Which tooth was crowned?",
+        "What material was the crown made from?",
+        "For a metal-containing crown, what metal classification was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "zirconia",
+          "lithium disilicate",
+          "ceramic",
+          "porcelain"
+        ],
+        "per_tooth": "true",
+        "dentition": "permanent"
+      },
+      "relationships": [
+        {
+          "to": "D2750",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2751",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2752",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2790",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2791",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        }
+      ]
+    },
+    {
+      "code": "D2750",
+      "category": "RESTORATIVE",
+      "subcategory": "Single crowns",
+      "shortLabel": "Crown — porcelain fused to high noble metal",
+      "plainLanguage": "A full-coverage crown with a porcelain surface fused to a high noble metal substructure.",
+      "commonUse": "Used where a tooth needs full-coverage restoration, such as after fracture, extensive decay, or root canal therapy.",
+      "distinctions": "Crown codes are separated by the material and, for metal-containing crowns, by the metal classification. The laboratory prescription or invoice is usually what establishes the metal class.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Crown material",
+        "For metal-containing crowns, the metal classification",
+        "Reason full coverage was indicated"
+      ],
+      "verifyQuestions": [
+        "Which tooth was crowned?",
+        "What material was the crown made from?",
+        "For a metal-containing crown, what metal classification was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "porcelain fused to metal"
+        ],
+        "per_tooth": "true",
+        "dentition": "permanent"
+      },
+      "relationships": [
+        {
+          "to": "D2740",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2751",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2752",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2790",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2791",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        }
+      ]
+    },
+    {
+      "code": "D2751",
+      "category": "RESTORATIVE",
+      "subcategory": "Single crowns",
+      "shortLabel": "Crown — porcelain fused to predominantly base metal",
+      "plainLanguage": "A full-coverage crown with porcelain fused to a predominantly base metal substructure.",
+      "commonUse": "Used where a tooth needs full-coverage restoration, such as after fracture, extensive decay, or root canal therapy.",
+      "distinctions": "Crown codes are separated by the material and, for metal-containing crowns, by the metal classification. The laboratory prescription or invoice is usually what establishes the metal class.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Crown material",
+        "For metal-containing crowns, the metal classification",
+        "Reason full coverage was indicated"
+      ],
+      "verifyQuestions": [
+        "Which tooth was crowned?",
+        "What material was the crown made from?",
+        "For a metal-containing crown, what metal classification was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "porcelain fused to metal"
+        ],
+        "per_tooth": "true",
+        "dentition": "permanent"
+      },
+      "relationships": [
+        {
+          "to": "D2740",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2750",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2752",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2790",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2791",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        }
+      ]
+    },
+    {
+      "code": "D2752",
+      "category": "RESTORATIVE",
+      "subcategory": "Single crowns",
+      "shortLabel": "Crown — porcelain fused to noble metal",
+      "plainLanguage": "A full-coverage crown with porcelain fused to a noble metal substructure.",
+      "commonUse": "Used where a tooth needs full-coverage restoration, such as after fracture, extensive decay, or root canal therapy.",
+      "distinctions": "Crown codes are separated by the material and, for metal-containing crowns, by the metal classification. The laboratory prescription or invoice is usually what establishes the metal class.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Crown material",
+        "For metal-containing crowns, the metal classification",
+        "Reason full coverage was indicated"
+      ],
+      "verifyQuestions": [
+        "Which tooth was crowned?",
+        "What material was the crown made from?",
+        "For a metal-containing crown, what metal classification was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "porcelain fused to metal"
+        ],
+        "per_tooth": "true",
+        "dentition": "permanent"
+      },
+      "relationships": [
+        {
+          "to": "D2740",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2750",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2751",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2790",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2791",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        }
+      ]
+    },
+    {
+      "code": "D2790",
+      "category": "RESTORATIVE",
+      "subcategory": "Single crowns",
+      "shortLabel": "Crown — full cast high noble metal",
+      "plainLanguage": "A full-coverage crown cast entirely in high noble metal.",
+      "commonUse": "Used where a tooth needs full-coverage restoration, such as after fracture, extensive decay, or root canal therapy.",
+      "distinctions": "Crown codes are separated by the material and, for metal-containing crowns, by the metal classification. The laboratory prescription or invoice is usually what establishes the metal class.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Crown material",
+        "For metal-containing crowns, the metal classification",
+        "Reason full coverage was indicated"
+      ],
+      "verifyQuestions": [
+        "Which tooth was crowned?",
+        "What material was the crown made from?",
+        "For a metal-containing crown, what metal classification was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "gold",
+          "noble metal"
+        ],
+        "per_tooth": "true",
+        "dentition": "permanent"
+      },
+      "relationships": [
+        {
+          "to": "D2740",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2750",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2751",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2752",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2791",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        }
+      ]
+    },
+    {
+      "code": "D2791",
+      "category": "RESTORATIVE",
+      "subcategory": "Single crowns",
+      "shortLabel": "Crown — full cast predominantly base metal",
+      "plainLanguage": "A full-coverage crown cast entirely in predominantly base metal.",
+      "commonUse": "Used where a tooth needs full-coverage restoration, such as after fracture, extensive decay, or root canal therapy.",
+      "distinctions": "Crown codes are separated by the material and, for metal-containing crowns, by the metal classification. The laboratory prescription or invoice is usually what establishes the metal class.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "Crown material",
+        "For metal-containing crowns, the metal classification",
+        "Reason full coverage was indicated"
+      ],
+      "verifyQuestions": [
+        "Which tooth was crowned?",
+        "What material was the crown made from?",
+        "For a metal-containing crown, what metal classification was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "base metal"
+        ],
+        "per_tooth": "true",
+        "dentition": "permanent"
+      },
+      "relationships": [
+        {
+          "to": "D2740",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2750",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2751",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2752",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        },
+        {
+          "to": "D2790",
+          "type": "ALTERNATIVE_TO",
+          "note": "A crown of a different material or metal classification."
+        }
+      ]
+    },
+    {
+      "code": "D2930",
+      "category": "RESTORATIVE",
+      "subcategory": "Prefabricated crowns",
+      "shortLabel": "Prefabricated stainless steel crown — primary tooth",
+      "plainLanguage": "A preformed stainless steel crown cemented over a primary tooth.",
+      "commonUse": "Commonly used on primary molars with extensive decay or after a pulpotomy.",
+      "distinctions": "Selected by dentition: there is a separate code for a permanent tooth. It is distinct from a laboratory-fabricated crown.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the tooth is primary",
+        "That the crown was prefabricated stainless steel"
+      ],
+      "verifyQuestions": [
+        "Is the tooth primary or permanent?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "stainless steel"
+        ],
+        "dentition": "primary",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2931",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "The permanent-tooth version of this crown has its own code."
+        }
+      ]
+    },
+    {
+      "code": "D2931",
+      "category": "RESTORATIVE",
+      "subcategory": "Prefabricated crowns",
+      "shortLabel": "Prefabricated stainless steel crown — permanent tooth",
+      "plainLanguage": "A preformed stainless steel crown cemented over a permanent tooth.",
+      "commonUse": "Used as an interim or definitive full-coverage restoration on a permanent tooth.",
+      "distinctions": "Selected by dentition: there is a separate code for a primary tooth.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the tooth is permanent",
+        "That the crown was prefabricated stainless steel"
+      ],
+      "verifyQuestions": [
+        "Is the tooth primary or permanent?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown",
+        "requires_tooth": "true",
+        "crown_material": [
+          "stainless steel"
+        ],
+        "dentition": "permanent",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2930",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "The primary-tooth version of this crown has its own code."
+        }
+      ]
+    },
+    {
+      "code": "D2920",
+      "category": "RESTORATIVE",
+      "subcategory": "Crown services",
+      "shortLabel": "Recement or rebond crown",
+      "plainLanguage": "Re-cementing an existing crown that has come off, without making a new one.",
+      "commonUse": "Used when a crown de-bonds and is refitted intact.",
+      "distinctions": "Distinct from placing a new crown. If the crown is remade, a crown code applies instead.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the existing crown was refitted rather than replaced",
+        "Condition of the tooth and crown"
+      ],
+      "verifyQuestions": [
+        "Was the existing crown re-cemented, or was a new crown made?"
+      ],
+      "attributes": {
+        "procedure_kind": "crown_recement",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D2950",
+      "category": "RESTORATIVE",
+      "subcategory": "Crown build-ups",
+      "shortLabel": "Core buildup, including any pins",
+      "plainLanguage": "Building up the remaining tooth structure so a crown has enough to hold onto.",
+      "commonUse": "Used when so little tooth structure remains that a crown could not be retained without it.",
+      "distinctions": "A buildup is for retention and structure, not simply to fill the space left by removing decay. If the material is placed only as a base or liner under a restoration, this is not the right code.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "How much tooth structure remained",
+        "That the buildup was needed for crown retention"
+      ],
+      "verifyQuestions": [
+        "Was the buildup necessary to retain the crown, rather than to fill out the preparation?",
+        "How much coronal tooth structure remained?"
+      ],
+      "attributes": {
+        "procedure_kind": "core_buildup",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2954",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Where a post is placed in the root canal, the post and core code applies instead."
+        }
+      ]
+    },
+    {
+      "code": "D2954",
+      "category": "RESTORATIVE",
+      "subcategory": "Crown build-ups",
+      "shortLabel": "Prefabricated post and core in addition to crown",
+      "plainLanguage": "A preformed post cemented into the root canal with a core built around it.",
+      "commonUse": "Used on an endodontically treated tooth where a post is needed to retain the core.",
+      "distinctions": "Distinct from a core buildup with no post, and from a cast post and core made in a laboratory.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the tooth has had root canal therapy",
+        "That a prefabricated post was placed"
+      ],
+      "verifyQuestions": [
+        "Was a post actually placed into the canal?",
+        "Was the post prefabricated or cast?"
+      ],
+      "attributes": {
+        "procedure_kind": "post_and_core",
+        "requires_tooth": "true",
+        "post_type": "prefabricated",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2952",
+          "type": "ALTERNATIVE_TO",
+          "note": "A cast post and core is fabricated rather than prefabricated."
+        },
+        {
+          "to": "D2950",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A buildup with no post is reported differently."
+        }
+      ]
+    },
+    {
+      "code": "D2952",
+      "category": "RESTORATIVE",
+      "subcategory": "Crown build-ups",
+      "shortLabel": "Cast post and core in addition to crown",
+      "plainLanguage": "A post and core cast as a single custom unit in a laboratory.",
+      "commonUse": "Used on an endodontically treated tooth where a custom cast post is chosen over a prefabricated one.",
+      "distinctions": "Distinguished from the prefabricated post and core by how the post was made.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the tooth has had root canal therapy",
+        "That the post and core was cast"
+      ],
+      "verifyQuestions": [
+        "Was the post and core cast in a laboratory rather than prefabricated?"
+      ],
+      "attributes": {
+        "procedure_kind": "post_and_core",
+        "requires_tooth": "true",
+        "post_type": "cast",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2954",
+          "type": "ALTERNATIVE_TO",
+          "note": "A prefabricated post and core is not laboratory cast."
+        }
+      ]
+    },
+    {
+      "code": "D2940",
+      "category": "RESTORATIVE",
+      "subcategory": "Interim restorations",
+      "shortLabel": "Protective restoration",
+      "plainLanguage": "A temporary restoration placed to protect a tooth and relieve symptoms until definitive treatment.",
+      "commonUse": "Used as an interim measure, for example to settle symptoms before deciding on definitive treatment.",
+      "distinctions": "This is not a definitive filling. If a definitive restoration was placed at the same visit, that restoration is what is reported.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the restoration was protective or interim",
+        "The plan for definitive treatment"
+      ],
+      "verifyQuestions": [
+        "Was this placed as an interim measure rather than a definitive restoration?"
+      ],
+      "attributes": {
+        "procedure_kind": "sedative_filling",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D3110",
+      "category": "ENDODONTICS",
+      "subcategory": "Pulp capping",
+      "shortLabel": "Pulp cap — direct",
+      "plainLanguage": "Placing medicament directly onto an exposed pulp to keep it vital.",
+      "commonUse": "Used when the pulp is exposed during caries removal or by trauma and is being preserved.",
+      "distinctions": "Direct capping requires an actual pulp exposure. Where the pulp is not exposed and a liner is placed over deep dentine, the indirect code applies.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the pulp was exposed",
+        "The medicament used"
+      ],
+      "verifyQuestions": [
+        "Was the pulp actually exposed?"
+      ],
+      "attributes": {
+        "procedure_kind": "pulp_cap",
+        "pulp_cap_type": "direct",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D3120",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Indirect capping applies where the pulp was not exposed."
+        }
+      ]
+    },
+    {
+      "code": "D3120",
+      "category": "ENDODONTICS",
+      "subcategory": "Pulp capping",
+      "shortLabel": "Pulp cap — indirect",
+      "plainLanguage": "Placing medicament over a deep area of dentine close to the pulp, where the pulp itself is not exposed.",
+      "commonUse": "Used in deep caries where the pulp is approached but not exposed.",
+      "distinctions": "Distinguished from direct capping by whether the pulp was exposed.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the pulp was not exposed",
+        "The medicament used"
+      ],
+      "verifyQuestions": [
+        "Was the pulp exposed, or was it approached but left covered?"
+      ],
+      "attributes": {
+        "procedure_kind": "pulp_cap",
+        "pulp_cap_type": "indirect",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D3110",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Direct capping applies where the pulp was exposed."
+        }
+      ]
+    },
+    {
+      "code": "D3220",
+      "category": "ENDODONTICS",
+      "subcategory": "Pulpal therapy",
+      "shortLabel": "Therapeutic pulpotomy — primary or permanent tooth",
+      "plainLanguage": "Removal of the coronal pulp, leaving the radicular pulp in place and treating it.",
+      "commonUse": "Commonly performed on primary molars, and sometimes as an interim measure on a permanent tooth.",
+      "distinctions": "A pulpotomy removes only the coronal pulp. Complete removal of the pulp through the canals is root canal therapy instead.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That only the coronal pulp was removed",
+        "Medicament placed"
+      ],
+      "verifyQuestions": [
+        "Was only the coronal pulp removed, or were the canals treated as well?"
+      ],
+      "attributes": {
+        "procedure_kind": "pulpotomy",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D3310",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Full root canal therapy treats the canals rather than only the coronal pulp."
+        }
+      ]
+    },
+    {
+      "code": "D3310",
+      "category": "ENDODONTICS",
+      "subcategory": "Root canal therapy",
+      "shortLabel": "Endodontic therapy — anterior tooth",
+      "plainLanguage": "Root canal treatment of an anterior tooth, including cleaning, shaping and filling the canals.",
+      "commonUse": "Used where the pulp is irreversibly inflamed or necrotic and the tooth is being retained.",
+      "distinctions": "The root canal family is separated by tooth position — anterior, premolar, or molar. The tooth number determines which applies, so it is essential.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the canals were treated and obturated",
+        "Diagnosis supporting treatment"
+      ],
+      "verifyQuestions": [
+        "Which tooth was treated?",
+        "Were all canals cleaned, shaped and filled at this visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "root_canal",
+        "requires_tooth": "true",
+        "tooth_position_class": "anterior",
+        "dentition": "permanent",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D3320",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure on a tooth in a different position class."
+        },
+        {
+          "to": "D3330",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure on a tooth in a different position class."
+        }
+      ]
+    },
+    {
+      "code": "D3320",
+      "category": "ENDODONTICS",
+      "subcategory": "Root canal therapy",
+      "shortLabel": "Endodontic therapy — premolar tooth",
+      "plainLanguage": "Root canal treatment of a premolar tooth, including cleaning, shaping and filling the canals.",
+      "commonUse": "Used where the pulp is irreversibly inflamed or necrotic and the tooth is being retained.",
+      "distinctions": "The root canal family is separated by tooth position — anterior, premolar, or molar. The tooth number determines which applies, so it is essential.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the canals were treated and obturated",
+        "Diagnosis supporting treatment"
+      ],
+      "verifyQuestions": [
+        "Which tooth was treated?",
+        "Were all canals cleaned, shaped and filled at this visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "root_canal",
+        "requires_tooth": "true",
+        "tooth_position_class": "premolar",
+        "dentition": "permanent",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D3310",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure on a tooth in a different position class."
+        },
+        {
+          "to": "D3330",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure on a tooth in a different position class."
+        }
+      ]
+    },
+    {
+      "code": "D3330",
+      "category": "ENDODONTICS",
+      "subcategory": "Root canal therapy",
+      "shortLabel": "Endodontic therapy — molar tooth",
+      "plainLanguage": "Root canal treatment of a molar tooth, including cleaning, shaping and filling the canals.",
+      "commonUse": "Used where the pulp is irreversibly inflamed or necrotic and the tooth is being retained.",
+      "distinctions": "The root canal family is separated by tooth position — anterior, premolar, or molar. The tooth number determines which applies, so it is essential.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the canals were treated and obturated",
+        "Diagnosis supporting treatment"
+      ],
+      "verifyQuestions": [
+        "Which tooth was treated?",
+        "Were all canals cleaned, shaped and filled at this visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "root_canal",
+        "requires_tooth": "true",
+        "tooth_position_class": "molar",
+        "dentition": "permanent",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D3310",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure on a tooth in a different position class."
+        },
+        {
+          "to": "D3320",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Same procedure on a tooth in a different position class."
+        }
+      ]
+    },
+    {
+      "code": "D4341",
+      "category": "PERIODONTICS",
+      "subcategory": "Scaling and root planing",
+      "shortLabel": "Scaling and root planing — four or more teeth per quadrant",
+      "plainLanguage": "Cleaning of the root surfaces below the gum line in a quadrant with four or more affected teeth.",
+      "commonUse": "Used to treat periodontitis where there is attachment loss and calculus on the root surfaces.",
+      "distinctions": "Separated from the one-to-three-teeth code by how many teeth in the quadrant were treated. It is also distinct from a routine prophylaxis and from scaling for gingival inflammation.",
+      "documentationConsiderations": [
+        "Which quadrant was treated",
+        "How many teeth in that quadrant were treated",
+        "Periodontal charting supporting the diagnosis",
+        "Radiographic bone levels"
+      ],
+      "verifyQuestions": [
+        "Which quadrant was treated?",
+        "How many teeth in that quadrant were scaled and root planed?",
+        "Is there periodontal charting supporting the diagnosis?"
+      ],
+      "attributes": {
+        "procedure_kind": "scaling_root_planing",
+        "requires_quadrant": "true",
+        "teeth_per_quadrant": "4",
+        "teeth_per_quadrant_min": "4",
+        "per_quadrant": "true"
+      },
+      "relationships": [
+        {
+          "to": "D4342",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "One to three teeth in a quadrant is reported with a different code."
+        },
+        {
+          "to": "D1110",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A routine prophylaxis is a preventive cleaning, not periodontal therapy."
+        },
+        {
+          "to": "D4346",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Scaling for generalised gingival inflammation applies where there is no attachment loss."
+        }
+      ]
+    },
+    {
+      "code": "D4342",
+      "category": "PERIODONTICS",
+      "subcategory": "Scaling and root planing",
+      "shortLabel": "Scaling and root planing — one to three teeth per quadrant",
+      "plainLanguage": "Cleaning of the root surfaces below the gum line in a quadrant where one to three teeth are affected.",
+      "commonUse": "Used for localised periodontal involvement within a quadrant.",
+      "distinctions": "Separated from the four-or-more code by the number of teeth treated in that quadrant.",
+      "documentationConsiderations": [
+        "Which quadrant was treated",
+        "How many teeth in that quadrant were treated",
+        "Periodontal charting supporting the diagnosis"
+      ],
+      "verifyQuestions": [
+        "Which quadrant was treated?",
+        "How many teeth in that quadrant were scaled and root planed?"
+      ],
+      "attributes": {
+        "procedure_kind": "scaling_root_planing",
+        "requires_quadrant": "true",
+        "teeth_per_quadrant": "1",
+        "teeth_per_quadrant_max": "3",
+        "per_quadrant": "true"
+      },
+      "relationships": [
+        {
+          "to": "D4341",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "Four or more teeth in a quadrant is reported with a different code."
+        }
+      ]
+    },
+    {
+      "code": "D4346",
+      "category": "PERIODONTICS",
+      "subcategory": "Scaling",
+      "shortLabel": "Scaling in the presence of generalised moderate or severe gingival inflammation — full mouth",
+      "plainLanguage": "A full-mouth scaling for a patient with widespread gingival inflammation but without attachment loss.",
+      "commonUse": "Used where inflammation is generalised and a routine prophylaxis would not address it, but periodontitis is not present.",
+      "distinctions": "Distinguished from scaling and root planing by the absence of attachment loss, and from a prophylaxis by the extent of inflammation.",
+      "documentationConsiderations": [
+        "Extent of gingival inflammation",
+        "That there is no attachment loss (which would indicate periodontal therapy)",
+        "Periodontal charting"
+      ],
+      "verifyQuestions": [
+        "Is there generalised inflammation without attachment loss?",
+        "Does the charting show pocketing and attachment loss?"
+      ],
+      "attributes": {
+        "procedure_kind": "scaling_gingival_inflammation",
+        "per_visit": "true",
+        "full_mouth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D4341",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Scaling and root planing applies where there is attachment loss."
+        },
+        {
+          "to": "D1110",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A routine prophylaxis applies where inflammation is not generalised."
+        }
+      ]
+    },
+    {
+      "code": "D4355",
+      "category": "PERIODONTICS",
+      "subcategory": "Debridement",
+      "shortLabel": "Full mouth debridement to enable comprehensive evaluation and diagnosis",
+      "plainLanguage": "Removal of heavy deposits that prevent a proper examination from being carried out.",
+      "commonUse": "Used at a first visit where deposits are so heavy that the dentition cannot be evaluated.",
+      "distinctions": "This enables an evaluation rather than being a definitive cleaning. A comprehensive evaluation normally follows at a later visit.",
+      "documentationConsiderations": [
+        "That deposits prevented evaluation",
+        "That a comprehensive evaluation could not be completed at the same visit"
+      ],
+      "verifyQuestions": [
+        "Did the deposits genuinely prevent examination and diagnosis?",
+        "Was a comprehensive evaluation deferred to a later visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "full_mouth_debridement",
+        "per_visit": "true",
+        "full_mouth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D4910",
+      "category": "PERIODONTICS",
+      "subcategory": "Maintenance",
+      "shortLabel": "Periodontal maintenance",
+      "plainLanguage": "Ongoing periodontal care following active periodontal therapy, including removal of deposits above and below the gum line.",
+      "commonUse": "Used at recall visits for a patient who has completed periodontal treatment.",
+      "distinctions": "Applies after active periodontal therapy. A patient who has never had periodontal therapy generally receives a prophylaxis instead.",
+      "documentationConsiderations": [
+        "History of active periodontal therapy",
+        "Date of the previous periodontal treatment",
+        "Current periodontal charting"
+      ],
+      "verifyQuestions": [
+        "Has the patient completed active periodontal therapy?",
+        "When was that therapy carried out?"
+      ],
+      "attributes": {
+        "procedure_kind": "periodontal_maintenance",
+        "per_visit": "true",
+        "prior_perio_therapy": "required"
+      },
+      "relationships": [
+        {
+          "to": "D1110",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A prophylaxis applies to a patient who has not had active periodontal therapy."
+        }
+      ]
+    },
+    {
+      "code": "D5110",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Complete dentures",
+      "shortLabel": "Complete denture — maxillary",
+      "plainLanguage": "A full upper denture replacing all teeth in the upper arch.",
+      "commonUse": "Used where all teeth in an arch are replaced with a removable prosthesis.",
+      "distinctions": "Complete denture codes are separated by arch and by whether the denture was immediate or conventional.",
+      "documentationConsiderations": [
+        "Which arch was treated",
+        "Whether the denture was immediate or conventional",
+        "Whether this is an initial denture or a replacement"
+      ],
+      "verifyQuestions": [
+        "Which arch was the denture for?",
+        "Was it placed immediately at the time of extractions?"
+      ],
+      "attributes": {
+        "procedure_kind": "complete_denture",
+        "requires_arch": "true",
+        "arch": "maxillary",
+        "denture_timing": "conventional",
+        "per_arch": "true"
+      },
+      "relationships": [
+        {
+          "to": "D5120",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5130",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5140",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        }
+      ]
+    },
+    {
+      "code": "D5120",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Complete dentures",
+      "shortLabel": "Complete denture — mandibular",
+      "plainLanguage": "A full lower denture replacing all teeth in the lower arch.",
+      "commonUse": "Used where all teeth in an arch are replaced with a removable prosthesis.",
+      "distinctions": "Complete denture codes are separated by arch and by whether the denture was immediate or conventional.",
+      "documentationConsiderations": [
+        "Which arch was treated",
+        "Whether the denture was immediate or conventional",
+        "Whether this is an initial denture or a replacement"
+      ],
+      "verifyQuestions": [
+        "Which arch was the denture for?",
+        "Was it placed immediately at the time of extractions?"
+      ],
+      "attributes": {
+        "procedure_kind": "complete_denture",
+        "requires_arch": "true",
+        "arch": "mandibular",
+        "denture_timing": "conventional",
+        "per_arch": "true"
+      },
+      "relationships": [
+        {
+          "to": "D5110",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5130",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5140",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        }
+      ]
+    },
+    {
+      "code": "D5130",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Complete dentures",
+      "shortLabel": "Immediate denture — maxillary",
+      "plainLanguage": "A full upper denture placed at the time the remaining teeth are removed.",
+      "commonUse": "Used where all teeth in an arch are replaced with a removable prosthesis.",
+      "distinctions": "Complete denture codes are separated by arch and by whether the denture was immediate or conventional.",
+      "documentationConsiderations": [
+        "Which arch was treated",
+        "Whether the denture was immediate or conventional",
+        "Whether this is an initial denture or a replacement"
+      ],
+      "verifyQuestions": [
+        "Which arch was the denture for?",
+        "Was it placed immediately at the time of extractions?"
+      ],
+      "attributes": {
+        "procedure_kind": "complete_denture",
+        "requires_arch": "true",
+        "arch": "maxillary",
+        "denture_timing": "immediate",
+        "per_arch": "true"
+      },
+      "relationships": [
+        {
+          "to": "D5110",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5120",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5140",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        }
+      ]
+    },
+    {
+      "code": "D5140",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Complete dentures",
+      "shortLabel": "Immediate denture — mandibular",
+      "plainLanguage": "A full lower denture placed at the time the remaining teeth are removed.",
+      "commonUse": "Used where all teeth in an arch are replaced with a removable prosthesis.",
+      "distinctions": "Complete denture codes are separated by arch and by whether the denture was immediate or conventional.",
+      "documentationConsiderations": [
+        "Which arch was treated",
+        "Whether the denture was immediate or conventional",
+        "Whether this is an initial denture or a replacement"
+      ],
+      "verifyQuestions": [
+        "Which arch was the denture for?",
+        "Was it placed immediately at the time of extractions?"
+      ],
+      "attributes": {
+        "procedure_kind": "complete_denture",
+        "requires_arch": "true",
+        "arch": "mandibular",
+        "denture_timing": "immediate",
+        "per_arch": "true"
+      },
+      "relationships": [
+        {
+          "to": "D5110",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5120",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        },
+        {
+          "to": "D5130",
+          "type": "ALTERNATIVE_TO",
+          "note": "A complete denture for a different arch or timing."
+        }
+      ]
+    },
+    {
+      "code": "D5213",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Partial dentures",
+      "shortLabel": "Partial denture — maxillary, cast metal framework",
+      "plainLanguage": "A removable partial denture for the upper arch built on a cast metal framework with resin denture bases and teeth.",
+      "commonUse": "Used where some natural teeth remain and the missing teeth are replaced with a removable prosthesis.",
+      "distinctions": "Partial denture codes are separated by arch and by framework material. A resin-base partial with no cast framework is reported differently.",
+      "documentationConsiderations": [
+        "Which arch was treated",
+        "The framework material",
+        "Which teeth are being replaced"
+      ],
+      "verifyQuestions": [
+        "Which arch was the partial for?",
+        "Was the framework cast metal or resin?"
+      ],
+      "attributes": {
+        "procedure_kind": "partial_denture",
+        "requires_arch": "true",
+        "arch": "maxillary",
+        "framework_material": "cast metal",
+        "per_arch": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D5214",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Partial dentures",
+      "shortLabel": "Partial denture — mandibular, cast metal framework",
+      "plainLanguage": "A removable partial denture for the lower arch built on a cast metal framework with resin denture bases and teeth.",
+      "commonUse": "Used where some natural teeth remain and the missing teeth are replaced with a removable prosthesis.",
+      "distinctions": "Partial denture codes are separated by arch and by framework material. A resin-base partial with no cast framework is reported differently.",
+      "documentationConsiderations": [
+        "Which arch was treated",
+        "The framework material",
+        "Which teeth are being replaced"
+      ],
+      "verifyQuestions": [
+        "Which arch was the partial for?",
+        "Was the framework cast metal or resin?"
+      ],
+      "attributes": {
+        "procedure_kind": "partial_denture",
+        "requires_arch": "true",
+        "arch": "mandibular",
+        "framework_material": "cast metal",
+        "per_arch": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D5730",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Denture relines",
+      "shortLabel": "Reline complete maxillary denture — chairside",
+      "plainLanguage": "Resurfacing the fitting surface of a complete upper denture, done at the chair.",
+      "commonUse": "Used where a denture has become loose as the underlying ridge has changed shape.",
+      "distinctions": "Reline codes are separated by arch, by whether the denture is complete or partial, and by whether the reline was done chairside or in a laboratory.",
+      "documentationConsiderations": [
+        "Which arch",
+        "Whether the denture is complete or partial",
+        "Whether the reline was chairside or laboratory"
+      ],
+      "verifyQuestions": [
+        "Which arch was relined?",
+        "Was the denture complete or partial?",
+        "Was the reline done chairside or sent to a laboratory?"
+      ],
+      "attributes": {
+        "procedure_kind": "denture_reline",
+        "requires_arch": "true",
+        "arch": "maxillary",
+        "prosthesis_type": "complete",
+        "reline_setting": "chairside",
+        "per_arch": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D5731",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Denture relines",
+      "shortLabel": "Reline complete mandibular denture — chairside",
+      "plainLanguage": "Resurfacing the fitting surface of a complete lower denture, done at the chair.",
+      "commonUse": "Used where a denture has become loose as the underlying ridge has changed shape.",
+      "distinctions": "Reline codes are separated by arch, by whether the denture is complete or partial, and by whether the reline was done chairside or in a laboratory.",
+      "documentationConsiderations": [
+        "Which arch",
+        "Whether the denture is complete or partial",
+        "Whether the reline was chairside or laboratory"
+      ],
+      "verifyQuestions": [
+        "Which arch was relined?",
+        "Was the denture complete or partial?",
+        "Was the reline done chairside or sent to a laboratory?"
+      ],
+      "attributes": {
+        "procedure_kind": "denture_reline",
+        "requires_arch": "true",
+        "arch": "mandibular",
+        "prosthesis_type": "complete",
+        "reline_setting": "chairside",
+        "per_arch": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D5750",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Denture relines",
+      "shortLabel": "Reline complete maxillary denture — laboratory",
+      "plainLanguage": "Resurfacing the fitting surface of a complete upper denture, done in a laboratory.",
+      "commonUse": "Used where a denture has become loose as the underlying ridge has changed shape.",
+      "distinctions": "Reline codes are separated by arch, by whether the denture is complete or partial, and by whether the reline was done chairside or in a laboratory.",
+      "documentationConsiderations": [
+        "Which arch",
+        "Whether the denture is complete or partial",
+        "Whether the reline was chairside or laboratory"
+      ],
+      "verifyQuestions": [
+        "Which arch was relined?",
+        "Was the denture complete or partial?",
+        "Was the reline done chairside or sent to a laboratory?"
+      ],
+      "attributes": {
+        "procedure_kind": "denture_reline",
+        "requires_arch": "true",
+        "arch": "maxillary",
+        "prosthesis_type": "complete",
+        "reline_setting": "laboratory",
+        "per_arch": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D5751",
+      "category": "PROSTHODONTICS_REMOVABLE",
+      "subcategory": "Denture relines",
+      "shortLabel": "Reline complete mandibular denture — laboratory",
+      "plainLanguage": "Resurfacing the fitting surface of a complete lower denture, done in a laboratory.",
+      "commonUse": "Used where a denture has become loose as the underlying ridge has changed shape.",
+      "distinctions": "Reline codes are separated by arch, by whether the denture is complete or partial, and by whether the reline was done chairside or in a laboratory.",
+      "documentationConsiderations": [
+        "Which arch",
+        "Whether the denture is complete or partial",
+        "Whether the reline was chairside or laboratory"
+      ],
+      "verifyQuestions": [
+        "Which arch was relined?",
+        "Was the denture complete or partial?",
+        "Was the reline done chairside or sent to a laboratory?"
+      ],
+      "attributes": {
+        "procedure_kind": "denture_reline",
+        "requires_arch": "true",
+        "arch": "mandibular",
+        "prosthesis_type": "complete",
+        "reline_setting": "laboratory",
+        "per_arch": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D6245",
+      "category": "PROSTHODONTICS_FIXED",
+      "subcategory": "Pontics",
+      "shortLabel": "Pontic — porcelain/ceramic",
+      "plainLanguage": "The replacement tooth suspended between the supports of a fixed bridge, made of porcelain or ceramic.",
+      "commonUse": "Reported for each replaced tooth in a fixed bridge.",
+      "distinctions": "A pontic is the replacement tooth; the crowns on the supporting teeth are reported separately as retainers. Both parts of a bridge are reported.",
+      "documentationConsiderations": [
+        "Which tooth position the pontic replaces",
+        "The pontic material",
+        "Which teeth are the abutments"
+      ],
+      "verifyQuestions": [
+        "Which tooth position does the pontic replace?",
+        "Which teeth are supporting the bridge?"
+      ],
+      "attributes": {
+        "procedure_kind": "bridge",
+        "bridge_part": "pontic",
+        "requires_tooth": "true",
+        "material": "ceramic",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D6740",
+          "type": "BUNDLED_WITH",
+          "note": "The retainer crowns on the abutment teeth are reported in addition to the pontic."
+        }
+      ]
+    },
+    {
+      "code": "D6240",
+      "category": "PROSTHODONTICS_FIXED",
+      "subcategory": "Pontics",
+      "shortLabel": "Pontic — porcelain fused to high noble metal",
+      "plainLanguage": "The replacement tooth in a fixed bridge, with porcelain fused to a high noble metal substructure.",
+      "commonUse": "Reported for each replaced tooth in a fixed bridge of this construction.",
+      "distinctions": "Separated from other pontic codes by material and metal classification.",
+      "documentationConsiderations": [
+        "Which tooth position the pontic replaces",
+        "The pontic material and metal classification"
+      ],
+      "verifyQuestions": [
+        "Which tooth position does the pontic replace?",
+        "What material and metal class was used?"
+      ],
+      "attributes": {
+        "procedure_kind": "bridge",
+        "bridge_part": "pontic",
+        "requires_tooth": "true",
+        "material": "porcelain fused to metal",
+        "per_tooth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D6740",
+      "category": "PROSTHODONTICS_FIXED",
+      "subcategory": "Retainers",
+      "shortLabel": "Retainer crown — porcelain/ceramic",
+      "plainLanguage": "The crown placed on a supporting tooth that holds a fixed bridge in place, made of porcelain or ceramic.",
+      "commonUse": "Reported for each abutment tooth carrying a fixed bridge.",
+      "distinctions": "A retainer crown is part of a bridge. A crown placed on a tooth that is not supporting a bridge is reported as a single crown instead.",
+      "documentationConsiderations": [
+        "Which teeth are abutments",
+        "The retainer material",
+        "That the crown is part of a bridge"
+      ],
+      "verifyQuestions": [
+        "Is this crown supporting a bridge, or is it a stand-alone crown?"
+      ],
+      "attributes": {
+        "procedure_kind": "bridge",
+        "bridge_part": "retainer",
+        "requires_tooth": "true",
+        "material": "ceramic",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D2740",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A stand-alone crown is not a bridge retainer."
+        }
+      ]
+    },
+    {
+      "code": "D6930",
+      "category": "PROSTHODONTICS_FIXED",
+      "subcategory": "Bridge services",
+      "shortLabel": "Recement or rebond fixed partial denture",
+      "plainLanguage": "Re-cementing an existing bridge that has come loose, without remaking it.",
+      "commonUse": "Used when a bridge de-bonds and is refitted intact.",
+      "distinctions": "Distinct from remaking the bridge.",
+      "documentationConsiderations": [
+        "Which teeth the bridge spans",
+        "That the existing bridge was refitted rather than remade"
+      ],
+      "verifyQuestions": [
+        "Was the existing bridge re-cemented rather than remade?"
+      ],
+      "attributes": {
+        "procedure_kind": "bridge_recement",
+        "per_visit": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D6010",
+      "category": "IMPLANT_SERVICES",
+      "subcategory": "Implant placement",
+      "shortLabel": "Surgical placement of implant body — endosteal implant",
+      "plainLanguage": "Surgically placing the implant fixture into the bone.",
+      "commonUse": "Used for the surgical phase of implant treatment.",
+      "distinctions": "This is the surgical placement only. The abutment and the crown that follow are reported separately.",
+      "documentationConsiderations": [
+        "Tooth position or site",
+        "That the implant body was placed surgically",
+        "Implant system and size if recorded"
+      ],
+      "verifyQuestions": [
+        "Which site was the implant placed in?",
+        "Were the abutment or crown also placed at this visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "implant_placement",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D6057",
+      "category": "IMPLANT_SERVICES",
+      "subcategory": "Abutments",
+      "shortLabel": "Custom fabricated abutment",
+      "plainLanguage": "A custom-made connector between the implant and the crown.",
+      "commonUse": "Used where a stock abutment will not give the required emergence or angulation.",
+      "distinctions": "Separated from the prefabricated abutment code by whether the abutment was custom made.",
+      "documentationConsiderations": [
+        "Implant site",
+        "That the abutment was custom fabricated"
+      ],
+      "verifyQuestions": [
+        "Was the abutment custom made or prefabricated?"
+      ],
+      "attributes": {
+        "procedure_kind": "implant_abutment",
+        "abutment_type": "custom",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D6056",
+          "type": "ALTERNATIVE_TO",
+          "note": "A prefabricated abutment is reported with a different code."
+        }
+      ]
+    },
+    {
+      "code": "D6056",
+      "category": "IMPLANT_SERVICES",
+      "subcategory": "Abutments",
+      "shortLabel": "Prefabricated abutment",
+      "plainLanguage": "A stock connector between the implant and the crown.",
+      "commonUse": "Used where a stock abutment is suitable.",
+      "distinctions": "Separated from the custom abutment code by how the abutment was made.",
+      "documentationConsiderations": [
+        "Implant site",
+        "That the abutment was prefabricated"
+      ],
+      "verifyQuestions": [
+        "Was the abutment prefabricated or custom made?"
+      ],
+      "attributes": {
+        "procedure_kind": "implant_abutment",
+        "abutment_type": "prefabricated",
+        "requires_tooth": "true",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D6057",
+          "type": "ALTERNATIVE_TO",
+          "note": "A custom abutment is reported with a different code."
+        }
+      ]
+    },
+    {
+      "code": "D6058",
+      "category": "IMPLANT_SERVICES",
+      "subcategory": "Implant crowns",
+      "shortLabel": "Abutment supported porcelain/ceramic crown",
+      "plainLanguage": "A ceramic crown that seats onto an abutment fitted to an implant.",
+      "commonUse": "Used for the restorative phase of implant treatment where the crown is retained by an abutment.",
+      "distinctions": "Separated from an implant-supported crown, which attaches directly to the implant, and from a conventional crown on a natural tooth.",
+      "documentationConsiderations": [
+        "Implant site",
+        "Crown material",
+        "Whether the crown is abutment supported or implant supported"
+      ],
+      "verifyQuestions": [
+        "Is the crown retained by an abutment, or does it attach directly to the implant?",
+        "What material is the crown?"
+      ],
+      "attributes": {
+        "procedure_kind": "implant_crown",
+        "requires_tooth": "true",
+        "retention_type": "abutment_supported",
+        "material": "ceramic",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D6065",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "An implant-supported crown attaches directly to the implant rather than to an abutment."
+        },
+        {
+          "to": "D2740",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "A crown on a natural tooth is reported with a conventional crown code."
+        }
+      ]
+    },
+    {
+      "code": "D6065",
+      "category": "IMPLANT_SERVICES",
+      "subcategory": "Implant crowns",
+      "shortLabel": "Implant supported porcelain/ceramic crown",
+      "plainLanguage": "A ceramic crown that attaches directly to the implant without a separate abutment.",
+      "commonUse": "Used where the crown connects to the implant directly.",
+      "distinctions": "Separated from the abutment-supported crown by how the crown is retained.",
+      "documentationConsiderations": [
+        "Implant site",
+        "Crown material",
+        "That the crown attaches directly to the implant"
+      ],
+      "verifyQuestions": [
+        "Does the crown attach directly to the implant, or to an abutment?"
+      ],
+      "attributes": {
+        "procedure_kind": "implant_crown",
+        "requires_tooth": "true",
+        "retention_type": "implant_supported",
+        "material": "ceramic",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D6058",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "An abutment-supported crown seats onto a separate abutment."
+        }
+      ]
+    },
+    {
+      "code": "D7140",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Extractions",
+      "shortLabel": "Extraction — erupted tooth or exposed root",
+      "plainLanguage": "Removal of an erupted tooth or an exposed root using forceps and elevators, without cutting bone or sectioning the tooth.",
+      "commonUse": "The routine extraction of a tooth that can be removed without surgical access.",
+      "distinctions": "The extraction family is separated by how the tooth was removed. Bone removal, sectioning, or raising a flap moves the procedure into the surgical codes. The note must describe the technique actually used.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That the tooth was erupted",
+        "That removal needed no bone removal or sectioning"
+      ],
+      "verifyQuestions": [
+        "Was the tooth erupted?",
+        "Was any bone removed, a flap raised, or the tooth sectioned?"
+      ],
+      "attributes": {
+        "procedure_kind": "extraction",
+        "requires_tooth": "true",
+        "extraction_complexity": "simple",
+        "erupted_state": "erupted",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D7210",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A surgical extraction involves bone removal or sectioning of the tooth."
+        }
+      ]
+    },
+    {
+      "code": "D7210",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Extractions",
+      "shortLabel": "Extraction — erupted tooth requiring removal of bone and/or sectioning",
+      "plainLanguage": "Surgical removal of an erupted tooth where bone was removed, the tooth was sectioned, or a flap was raised.",
+      "commonUse": "Used where a routine forceps extraction was not possible.",
+      "distinctions": "The distinguishing facts are surgical: raising a flap, removing bone, or sectioning the tooth. If the note does not describe any of these, the simple extraction code is what the documentation supports.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "That a flap was raised, bone removed, or the tooth sectioned",
+        "Description of the surgical technique used"
+      ],
+      "verifyQuestions": [
+        "Was a flap raised?",
+        "Was bone removed or the tooth sectioned?"
+      ],
+      "attributes": {
+        "procedure_kind": "extraction",
+        "requires_tooth": "true",
+        "extraction_complexity": "surgical",
+        "erupted_state": "erupted",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D7140",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A simple extraction needs no bone removal or sectioning."
+        },
+        {
+          "to": "D7220",
+          "type": "COMMONLY_CONFUSED_WITH",
+          "note": "Impacted tooth codes apply where the tooth is impacted rather than erupted."
+        }
+      ]
+    },
+    {
+      "code": "D7220",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Impacted extractions",
+      "shortLabel": "Removal of impacted tooth — soft tissue",
+      "plainLanguage": "Removal of an impacted tooth where the impaction is classified as soft tissue.",
+      "commonUse": "Used for impacted teeth, most often third molars.",
+      "distinctions": "The impaction codes are separated by how much tissue and bone covers the tooth. The classification must come from the clinical and radiographic findings recorded, not from an assumption.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "The impaction classification",
+        "Radiographic findings supporting the classification",
+        "Surgical technique used"
+      ],
+      "verifyQuestions": [
+        "How was the impaction classified?",
+        "What do the radiographs show about bone coverage?"
+      ],
+      "attributes": {
+        "procedure_kind": "extraction",
+        "requires_tooth": "true",
+        "extraction_complexity": "soft tissue",
+        "erupted_state": "impacted",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D7230",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A different impaction classification."
+        },
+        {
+          "to": "D7240",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A different impaction classification."
+        }
+      ]
+    },
+    {
+      "code": "D7230",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Impacted extractions",
+      "shortLabel": "Removal of impacted tooth — partially bony",
+      "plainLanguage": "Removal of an impacted tooth where the impaction is classified as partially bony.",
+      "commonUse": "Used for impacted teeth, most often third molars.",
+      "distinctions": "The impaction codes are separated by how much tissue and bone covers the tooth. The classification must come from the clinical and radiographic findings recorded, not from an assumption.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "The impaction classification",
+        "Radiographic findings supporting the classification",
+        "Surgical technique used"
+      ],
+      "verifyQuestions": [
+        "How was the impaction classified?",
+        "What do the radiographs show about bone coverage?"
+      ],
+      "attributes": {
+        "procedure_kind": "extraction",
+        "requires_tooth": "true",
+        "extraction_complexity": "partially bony",
+        "erupted_state": "impacted",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D7220",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A different impaction classification."
+        },
+        {
+          "to": "D7240",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A different impaction classification."
+        }
+      ]
+    },
+    {
+      "code": "D7240",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Impacted extractions",
+      "shortLabel": "Removal of impacted tooth — completely bony",
+      "plainLanguage": "Removal of an impacted tooth where the impaction is classified as completely bony.",
+      "commonUse": "Used for impacted teeth, most often third molars.",
+      "distinctions": "The impaction codes are separated by how much tissue and bone covers the tooth. The classification must come from the clinical and radiographic findings recorded, not from an assumption.",
+      "documentationConsiderations": [
+        "Tooth number",
+        "The impaction classification",
+        "Radiographic findings supporting the classification",
+        "Surgical technique used"
+      ],
+      "verifyQuestions": [
+        "How was the impaction classified?",
+        "What do the radiographs show about bone coverage?"
+      ],
+      "attributes": {
+        "procedure_kind": "extraction",
+        "requires_tooth": "true",
+        "extraction_complexity": "completely bony",
+        "erupted_state": "impacted",
+        "per_tooth": "true"
+      },
+      "relationships": [
+        {
+          "to": "D7220",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A different impaction classification."
+        },
+        {
+          "to": "D7230",
+          "type": "SAME_FAMILY_DIFFERENT_COUNT",
+          "note": "A different impaction classification."
+        }
+      ]
+    },
+    {
+      "code": "D7250",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Extractions",
+      "shortLabel": "Removal of residual tooth roots — cutting procedure",
+      "plainLanguage": "Surgical removal of root fragments remaining in the bone.",
+      "commonUse": "Used where roots left from a previous extraction are removed surgically.",
+      "distinctions": "This applies to residual roots covered by tissue, not to an exposed root that can be elevated, which is a simple extraction.",
+      "documentationConsiderations": [
+        "Tooth number or site",
+        "That the roots were residual from previous loss",
+        "That a cutting procedure was required"
+      ],
+      "verifyQuestions": [
+        "Were these residual roots from a previous extraction?",
+        "Was a surgical cutting procedure required?"
+      ],
+      "attributes": {
+        "procedure_kind": "extraction",
+        "requires_tooth": "true",
+        "extraction_complexity": "surgical",
+        "erupted_state": "residual_root",
+        "per_tooth": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D7310",
+      "category": "ORAL_SURGERY",
+      "subcategory": "Alveoloplasty",
+      "shortLabel": "Alveoloplasty with extractions — four or more teeth or tooth spaces per quadrant",
+      "plainLanguage": "Reshaping the bony ridge at the time of extractions, in a quadrant with four or more teeth or spaces.",
+      "commonUse": "Used where the ridge is contoured to prepare for a prosthesis at the time teeth are removed.",
+      "distinctions": "Reported per quadrant, and separated by whether it is done with extractions and how many teeth or spaces are involved. Routine smoothing of bone as part of an extraction is generally considered part of the extraction.",
+      "documentationConsiderations": [
+        "Which quadrant",
+        "Number of teeth or spaces involved",
+        "That recontouring went beyond routine smoothing at the extraction site"
+      ],
+      "verifyQuestions": [
+        "Which quadrant was treated?",
+        "How many teeth or spaces were involved?",
+        "Was the recontouring beyond what the extraction itself required?"
+      ],
+      "attributes": {
+        "procedure_kind": "alveoloplasty",
+        "requires_quadrant": "true",
+        "with_extraction": "true",
+        "teeth_per_quadrant_min": "4",
+        "per_quadrant": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D9110",
+      "category": "ADJUNCTIVE",
+      "subcategory": "Palliative care",
+      "shortLabel": "Palliative treatment of dental pain — per visit",
+      "plainLanguage": "Emergency treatment aimed at relieving pain rather than providing a definitive fix.",
+      "commonUse": "Used at an emergency visit where symptoms are relieved and definitive treatment is planned for later.",
+      "distinctions": "This is for relief of pain, not definitive treatment. Where a definitive procedure was performed at the same visit, that procedure is what is reported.",
+      "documentationConsiderations": [
+        "The presenting symptom",
+        "What was done to relieve it",
+        "That definitive treatment was deferred"
+      ],
+      "verifyQuestions": [
+        "Was the treatment aimed at relieving symptoms rather than definitively treating the tooth?",
+        "Was a definitive procedure also performed at this visit?"
+      ],
+      "attributes": {
+        "procedure_kind": "palliative_treatment",
+        "per_visit": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D9230",
+      "category": "ADJUNCTIVE",
+      "subcategory": "Sedation",
+      "shortLabel": "Inhalation of nitrous oxide / anxiolysis",
+      "plainLanguage": "Administration of nitrous oxide to reduce anxiety during treatment.",
+      "commonUse": "Used for anxious patients or longer procedures.",
+      "distinctions": "Reported alongside the treatment provided. Practices differ in how they record duration, which some payers ask for.",
+      "documentationConsiderations": [
+        "That nitrous oxide was administered",
+        "Duration of administration if recorded",
+        "The procedure it accompanied"
+      ],
+      "verifyQuestions": [
+        "How long was nitrous oxide administered?",
+        "Which procedure did it accompany?"
+      ],
+      "attributes": {
+        "procedure_kind": "nitrous_oxide",
+        "per_visit": "true"
+      },
+      "relationships": []
+    },
+    {
+      "code": "D9944",
+      "category": "ADJUNCTIVE",
+      "subcategory": "Occlusal guards",
+      "shortLabel": "Occlusal guard — hard appliance, full arch",
+      "plainLanguage": "A hard full-arch appliance worn to protect the teeth, commonly for bruxism.",
+      "commonUse": "Used for patients grinding or clenching, or to protect restorative work.",
+      "distinctions": "Occlusal guard codes are separated by whether the appliance is hard, soft, or partial arch. The laboratory prescription usually establishes which was made.",
+      "documentationConsiderations": [
+        "Which arch the guard was made for",
+        "Whether the appliance is hard or soft",
+        "Whether it covers the full arch",
+        "The reason the guard was indicated"
+      ],
+      "verifyQuestions": [
+        "Was the appliance hard or soft?",
+        "Does it cover the full arch or part of it?"
+      ],
+      "attributes": {
+        "procedure_kind": "occlusal_guard",
+        "guard_type": "hard",
+        "guard_coverage": "full_arch",
+        "per_arch": "true"
+      },
+      "relationships": [
+        {
+          "to": "D9945",
+          "type": "ALTERNATIVE_TO",
+          "note": "A soft appliance is reported with a different code."
+        }
+      ]
+    },
+    {
+      "code": "D9945",
+      "category": "ADJUNCTIVE",
+      "subcategory": "Occlusal guards",
+      "shortLabel": "Occlusal guard — soft appliance, full arch",
+      "plainLanguage": "A soft full-arch appliance worn to protect the teeth.",
+      "commonUse": "Used where a soft appliance is prescribed rather than a hard one.",
+      "distinctions": "Separated from the hard appliance code by the material of the guard.",
+      "documentationConsiderations": [
+        "Which arch the guard was made for",
+        "That the appliance is soft",
+        "Whether it covers the full arch"
+      ],
+      "verifyQuestions": [
+        "Was the appliance soft or hard?",
+        "Does it cover the full arch?"
+      ],
+      "attributes": {
+        "procedure_kind": "occlusal_guard",
+        "guard_type": "soft",
+        "guard_coverage": "full_arch",
+        "per_arch": "true"
+      },
+      "relationships": [
+        {
+          "to": "D9944",
+          "type": "ALTERNATIVE_TO",
+          "note": "A hard appliance is reported with a different code."
+        }
+      ]
+    },
+    {
+      "code": "D9910",
+      "category": "ADJUNCTIVE",
+      "subcategory": "Desensitising",
+      "shortLabel": "Application of desensitising medicament",
+      "plainLanguage": "Applying a medicament to reduce tooth sensitivity.",
+      "commonUse": "Used for sensitive teeth or exposed root surfaces.",
+      "distinctions": "Reported per visit rather than per tooth. Applying a desensitiser as part of placing a restoration is generally considered part of that restoration.",
+      "documentationConsiderations": [
+        "That a desensitising medicament was applied",
+        "The teeth or areas treated",
+        "That it was not applied as part of another procedure"
+      ],
+      "verifyQuestions": [
+        "Was the medicament applied as a separate treatment rather than as part of a restoration?"
+      ],
+      "attributes": {
+        "procedure_kind": "desensitizing",
+        "per_visit": "true",
+        "application_scope": "visit"
+      },
+      "relationships": []
+    }
+  ],
+  "documentationRules": [
+    {
+      "scope": "CATEGORY",
+      "factKey": "tooth_numbers",
+      "label": "Tooth number",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which tooth was treated?",
+      "category": "RESTORATIVE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "surfaces",
+      "label": "Surfaces restored",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which surface or surfaces were restored?",
+      "category": "RESTORATIVE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "material",
+      "label": "Restorative material",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "What material was used for the restoration?",
+      "category": "RESTORATIVE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "restoration_intent",
+      "label": "New restoration or replacement",
+      "kind": "CLAIM_SUPPORT",
+      "weight": 1,
+      "promptQuestion": "Was this a new restoration, or was an existing restoration replaced?",
+      "category": "RESTORATIVE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "clinical_reasons",
+      "label": "Reason for treatment",
+      "kind": "CLAIM_SUPPORT",
+      "weight": 2,
+      "promptQuestion": "What was the clinical finding that led to treatment? Record only what was actually found.",
+      "category": "RESTORATIVE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "tooth_numbers",
+      "label": "Tooth number",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which tooth was treated?",
+      "category": "ENDODONTICS"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "clinical_reasons",
+      "label": "Pulpal diagnosis",
+      "kind": "CLAIM_SUPPORT",
+      "weight": 2,
+      "promptQuestion": "What was the pulpal and periapical diagnosis?",
+      "category": "ENDODONTICS"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "quadrants",
+      "label": "Quadrant",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which quadrant was treated?",
+      "category": "PERIODONTICS"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "tooth_count_in_quadrant",
+      "label": "Number of teeth treated in the quadrant",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "How many teeth in that quadrant were treated?",
+      "category": "PERIODONTICS"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "clinical_reasons",
+      "label": "Periodontal findings",
+      "kind": "CLAIM_SUPPORT",
+      "weight": 2,
+      "promptQuestion": "What periodontal findings support the treatment? Record the charting that was actually taken.",
+      "category": "PERIODONTICS"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "tooth_numbers",
+      "label": "Tooth number",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which tooth was removed?",
+      "category": "ORAL_SURGERY"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "extraction_complexity",
+      "label": "Technique used",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Was bone removed, a flap raised, or the tooth sectioned? Record only the technique actually used.",
+      "category": "ORAL_SURGERY"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "image_count",
+      "label": "Number of images",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "How many images were taken?",
+      "category": "DIAGNOSTIC"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "evaluation_type",
+      "label": "Type of evaluation",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "Was this a periodic recall evaluation, a comprehensive evaluation for a new patient, or a limited problem-focused evaluation?",
+      "category": "DIAGNOSTIC"
+    },
+    {
+      "scope": "CODE",
+      "factKey": "age_band",
+      "label": "Adult or child dentition",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "Is the patient's dentition adult (permanent), or child (primary or transitional)?",
+      "code": "D1110"
+    },
+    {
+      "scope": "CODE",
+      "factKey": "age_band",
+      "label": "Adult or child dentition",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "Is the patient's dentition adult (permanent), or child (primary or transitional)?",
+      "code": "D1120"
+    },
+    {
+      "scope": "CODE",
+      "factKey": "fluoride_form",
+      "label": "Form of fluoride",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "Was the fluoride applied as a varnish, or as a gel or foam?",
+      "code": "D1206"
+    },
+    {
+      "scope": "CODE",
+      "factKey": "fluoride_form",
+      "label": "Form of fluoride",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "Was the fluoride applied as a varnish, or as a gel or foam?",
+      "code": "D1208"
+    },
+    {
+      "scope": "CODE",
+      "factKey": "tooth_numbers",
+      "label": "Teeth sealed",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which teeth were sealed?",
+      "code": "D1351"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "arch",
+      "label": "Arch",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which arch was treated?",
+      "category": "PROSTHODONTICS_REMOVABLE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "prosthesis_type",
+      "label": "Type of prosthesis",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "Is the prosthesis complete or partial?",
+      "category": "PROSTHODONTICS_REMOVABLE"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "tooth_numbers",
+      "label": "Teeth involved",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which teeth are abutments and which positions are being replaced?",
+      "category": "PROSTHODONTICS_FIXED"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "material",
+      "label": "Material",
+      "kind": "CODING_REQUIRED",
+      "weight": 2,
+      "promptQuestion": "What material was used?",
+      "category": "PROSTHODONTICS_FIXED"
+    },
+    {
+      "scope": "CATEGORY",
+      "factKey": "tooth_numbers",
+      "label": "Implant site",
+      "kind": "CODING_REQUIRED",
+      "weight": 3,
+      "promptQuestion": "Which site does this relate to?",
+      "category": "IMPLANT_SERVICES"
+    }
+  ]
+}

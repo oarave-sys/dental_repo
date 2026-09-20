@@ -1,11 +1,15 @@
-// Referral OS — Phase 2 schema.
-// See docs/SCHEMA.md for the full proposal, including tables scheduled for later phases.
+// Dental Coding Assistant — database schema.
 //
 // Conventions:
 //   · every tenant-scoped model carries organizationId, indexed as the LEADING column
+//   · reference data (procedure codes and their rules) is GLOBAL, not tenant-scoped
 //   · createdAt / updatedAt on everything
-//   · soft delete (deletedAt) only on user-editable operational records — never on
-//     audit logs, status history, or the activity timeline
+//
+// Three row-level-security tiers, applied in prisma/migrations/*_row_level_security:
+//   TENANT    — readable only when app.current_org_id matches organizationId
+//   BOOTSTRAP — identity tables, reachable before a tenant is known (session lookup)
+//   REFERENCE — procedure-code data, readable by every authenticated tenant,
+//               writable only by the importer running as the owner role
 
 generator client {
   provider = "prisma-client-js"
@@ -17,1271 +21,556 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// Tenancy, identity, access
+// Tenancy and identity
 // ---------------------------------------------------------------------------
-
-model Organization {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String   @unique
-  specialty String   @default("RHEUMATOLOGY")
-  timezone  String   @default("America/New_York")
-  status    OrgStatus @default(ACTIVE)
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
-
-  settings              OrganizationSettings?
-  memberships           Membership[]
-  roles                 Role[]
-  invitations           Invitation[]
-  sessions              Session[]
-  patients              Patient[]
-  referrals             Referral[]
-  payers                Payer[]
-  referringOrgs         ReferringOrganization[]
-  referringProviders    ReferringProvider[]
-  documents             Document[]
-  intakeBatches         IntakeBatch[]
-  intakeItems           IntakeItem[]
-  auditLogs             AuditLog[]
-  statusHistory         ReferralStatusHistory[]
-  activities            ReferralActivity[]
-  contactAttempts       ContactAttempt[]
-  touchMetrics          ReferralTouchMetrics[]
-  matchCandidates       PatientMatchCandidate[]
-  ehrLinks              EhrLink[]
-  referralCategories    ReferralCategory[]
-  categoryCodeMaps      ReferralCategoryCodeMap[]
-  diagnosisSynonyms     DiagnosisSynonym[]
-  ruleSetVersions       RuleSetVersion[]
-  triageRules           TriageRule[]
-  triageRuleActions     TriageRuleAction[]
-  requirementDefs       RequirementDefinition[]
-  payerRules            PayerRule[]
-  triageEvaluations     TriageEvaluation[]
-  dimensionResults      TriageDimensionResult[]
-  diagnosisCandidates   DiagnosisCandidate[]
-  requirementResults    ReferralRequirementResult[]
-
-  @@map("organizations")
-}
-
-model OrganizationSettings {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @unique @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  /// Business calendar. Required for every SLA metric — see docs/OPEN-QUESTIONS.md A-10.
-  /// businessHours: { mon: [480, 1020], ... } minutes from midnight, org timezone.
-  businessHours   Json
-  holidayDates    String[] @default([])
-
-  untouchedAlertBusinessDays Int @default(1)
-  staleReferralDays          Int @default(7)
-  missingInfoFollowupDays    Int @default(3)
-  marketingFollowupDays      Int @default(14)
-
-  /// Duplicate detection: minimum score (0-100) to surface a possible match.
-  duplicateReviewThreshold Int @default(60)
-
-  // --- Triage thresholds (Phase 3) ---
-  /// What an unidentifiable diagnosis produces. YELLOW sends it to a person;
-  /// UNKNOWN leaves it in a bucket someone has to remember to work.
-  unknownDiagnosisBehavior UnknownDiagnosisBehavior @default(YELLOW)
-  /// Below this, a diagnosis is not confident enough to route on.
-  diagnosisConfidenceFloor Int @default(55)
-  /// Top two candidates within this many points, disagreeing, means the system
-  /// refuses to pick and asks a physician.
-  contestedMargin          Int @default(12)
-  /// Confidence band labels, organization-configurable.
-  confidenceBands          Json?
-
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
-
-  @@map("organization_settings")
-}
-
-/// Users are global; access to an organization is granted by a Membership.
-/// A user's email and password are PII, not PHI.
-model User {
-  id                  String    @id @default(uuid()) @db.Uuid
-  email               String    @unique
-  name                String
-  passwordHash        String
-  mfaSecretEncrypted  String?
-  mfaEnrolledAt       DateTime? @db.Timestamptz(6)
-  status              UserStatus @default(ACTIVE)
-  lastLoginAt         DateTime? @db.Timestamptz(6)
-  failedLoginCount    Int       @default(0)
-  lockedUntil         DateTime? @db.Timestamptz(6)
-  createdAt           DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt           DateTime  @updatedAt @db.Timestamptz(6)
-
-  memberships       Membership[]
-  sessions          Session[]
-  assignedReferrals Referral[]        @relation("ReferralAssignee")
-  activities        ReferralActivity[]
-  contactAttempts   ContactAttempt[]
-  auditLogs         AuditLog[]
-  uploadedDocuments Document[]
-  intakeBatches     IntakeBatch[]
-
-  @@map("users")
-}
-
-model Membership {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         String @db.Uuid
-  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status         MembershipStatus @default(ACTIVE)
-  acceptedAt     DateTime? @db.Timestamptz(6)
-  createdAt      DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
-
-  roles MembershipRole[]
-
-  @@unique([userId, organizationId])
-  @@index([organizationId, status])
-  @@map("memberships")
-}
-
-model Role {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  key            RoleKey
-  name           String
-  isSystem       Boolean @default(true)
-  /// Permission strings. The role matrix in src/lib/authz is the source of truth
-  /// for system roles; this column lets an org define custom roles later.
-  permissions    String[]
-  createdAt      DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
-
-  memberships MembershipRole[]
-  invitations Invitation[]
-
-  @@unique([organizationId, key])
-  @@map("roles")
-}
-
-model MembershipRole {
-  id           String @id @default(uuid()) @db.Uuid
-  membershipId String @db.Uuid
-  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  roleId       String @db.Uuid
-  role         Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now()) @db.Timestamptz(6)
-
-  @@unique([membershipId, roleId])
-  @@map("membership_roles")
-}
-
-/// Opaque-token database sessions. The cookie carries a random 256-bit token;
-/// only its SHA-256 is stored, so a database read cannot reconstruct a session.
-/// Chosen over JWT so sessions are revocable server-side — see docs/DECISIONS.md.
-model Session {
-  id             String @id @default(uuid()) @db.Uuid
-  userId         String @db.Uuid
-  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// The organization this session is bound to. Tenancy comes from here and
-  /// nowhere else — never from a request body, header or query parameter.
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  tokenHash      String   @unique
-  mfaSatisfied   Boolean  @default(false)
-  ipHash         String?
-  userAgent      String?
-  idleExpiresAt  DateTime @db.Timestamptz(6)
-  absoluteExpiresAt DateTime @db.Timestamptz(6)
-  revokedAt      DateTime? @db.Timestamptz(6)
-  createdAt      DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([userId])
-  @@index([organizationId])
-  @@map("sessions")
-}
-
-model Invitation {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String
-  roleId         String @db.Uuid
-  role           Role @relation(fields: [roleId], references: [id])
-  tokenHash      String @unique
-  expiresAt      DateTime @db.Timestamptz(6)
-  acceptedAt     DateTime? @db.Timestamptz(6)
-  invitedByUserId String? @db.Uuid
-  createdAt      DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([organizationId, email])
-  @@map("invitations")
-}
-
-// ---------------------------------------------------------------------------
-// Pre-EHR patient staging
-// ---------------------------------------------------------------------------
-
-/// A patient exists here WITHOUT an EHR chart. That is the point of the product:
-/// no chart is created for someone who never becomes a patient.
-model Patient {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  firstName        String
-  lastName         String
-  dateOfBirth      DateTime @db.Date
-  sex              String?
-  phonePrimary     String?
-  phoneSecondary   String?
-  email            String?
-  addressLine1     String?
-  addressLine2     String?
-  city             String?
-  state            String?
-  postalCode       String?
-  preferredLanguage String?
-  notes            String?
-
-  /// Set only by an explicit human action. The system never auto-merges patients.
-  mergedIntoPatientId String? @db.Uuid
-  mergedIntoPatient   Patient?  @relation("PatientMerge", fields: [mergedIntoPatientId], references: [id])
-  mergedFrom          Patient[] @relation("PatientMerge")
-
-  deletedAt DateTime? @db.Timestamptz(6)
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
-
-  referrals       Referral[]
-  ehrLink         EhrLink?
-  documents       Document[]
-  contactAttempts ContactAttempt[]
-  matchesAsSource PatientMatchCandidate[] @relation("MatchSource")
-  matchesAsTarget PatientMatchCandidate[] @relation("MatchCandidate")
-
-  @@index([organizationId, lastName, firstName, dateOfBirth])
-  @@index([organizationId, dateOfBirth])
-  @@index([organizationId, phonePrimary])
-  @@map("patients")
-}
-
-/// Surfaced duplicate suspicions. Never acted on automatically.
-model PatientMatchCandidate {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  patientId          String @db.Uuid
-  patient            Patient @relation("MatchSource", fields: [patientId], references: [id], onDelete: Cascade)
-  candidatePatientId String @db.Uuid
-  candidatePatient   Patient @relation("MatchCandidate", fields: [candidatePatientId], references: [id], onDelete: Cascade)
-
-  score      Int
-  matchedOn  String[]
-  status     MatchStatus @default(OPEN)
-  reviewedByUserId String? @db.Uuid
-  reviewedAt DateTime? @db.Timestamptz(6)
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
-
-  @@unique([patientId, candidatePatientId])
-  @@index([organizationId, status])
-  @@map("patient_match_candidates")
-}
-
-/// The EHR linkage, created only once a patient has progressed far enough to
-/// deserve a chart. V1 is manual entry; the API path is designed for, not built.
-model EhrLink {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  patientId      String @unique @db.Uuid
-  patient        Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  mrn             String
-  ehrPatientId    String?
-  ehrSystem       String  @default("UNSPECIFIED")
-  createdInEhrAt  DateTime @db.Timestamptz(6)
-  linkedByUserId  String? @db.Uuid
-  linkMethod      EhrLinkMethod @default(MANUAL)
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
-
-  @@unique([organizationId, mrn])
-  @@map("ehr_links")
-}
-
-// ---------------------------------------------------------------------------
-// Referral sources and payers
-// ---------------------------------------------------------------------------
-
-model ReferringOrganization {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  name         String
-  addressLine1 String?
-  city         String?
-  state        String?
-  postalCode   String?
-  phone        String?
-  fax          String?
-  website      String?
-  npi          String?
-  notes        String?
-  isActive     Boolean @default(true)
-  lastReferralAt DateTime? @db.Timestamptz(6)
-  deletedAt    DateTime? @db.Timestamptz(6)
-  createdAt    DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
-
-  providers ReferringProvider[]
-  referrals Referral[]
-
-  @@index([organizationId, name])
-  @@map("referring_organizations")
-}
-
-model ReferringProvider {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  referringOrganizationId String? @db.Uuid
-  referringOrganization   ReferringOrganization? @relation(fields: [referringOrganizationId], references: [id])
-
-  firstName  String
-  lastName   String
-  credential String?
-  specialty  String?
-  npi        String?
-  phone      String?
-  fax        String?
-  notes      String?
-  isActive   Boolean @default(true)
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
-
-  referrals Referral[]
-
-  @@index([organizationId, lastName])
-  @@map("referring_providers")
-}
-
-model Payer {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  name       String
-  category   String?
-  /// Whether the practice accepts this payer. Enforced by the Phase 3 rules
-  /// engine, not here — this column is organization configuration, not policy code.
-  isAccepted Boolean @default(true)
-  notes      String?
-  isActive   Boolean @default(true)
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
-
-  referrals Referral[]
-
-  @@unique([organizationId, name])
-  @@map("payers")
-}
-
-// ---------------------------------------------------------------------------
-// Referrals
-// ---------------------------------------------------------------------------
-
-model Referral {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  patientId String @db.Uuid
-  patient   Patient @relation(fields: [patientId], references: [id])
-
-  intakeChannel IntakeChannel @default(MANUAL)
-  /// When the referral ARRIVED, which is not when it was uploaded. A backlog
-  /// migration that conflates the two destroys every touch-time metric.
-  receivedAt    DateTime @db.Timestamptz(6)
-
-  referringOrganizationId String? @db.Uuid
-  referringOrganization   ReferringOrganization? @relation(fields: [referringOrganizationId], references: [id])
-  referringProviderId     String? @db.Uuid
-  referringProvider       ReferringProvider? @relation(fields: [referringProviderId], references: [id])
-
-  referralDiagnosisText String?
-  referringDiagnosisCode String?
-
-  payerId       String? @db.Uuid
-  payer         Payer? @relation(fields: [payerId], references: [id])
-  payerRawName  String?
-  /// Member IDs are identifiers, kept out of indexes and never logged.
-  memberId      String?
-
-  assignedUserId String? @db.Uuid
-  assignedUser   User? @relation("ReferralAssignee", fields: [assignedUserId], references: [id])
-
-  status   ReferralStatus @default(NEW)
-  priority ReferralPriority @default(ROUTINE)
-  notes    String?
-
-  // Workflow timestamps, set once, by the status machine.
-  firstTouchedAt    DateTime? @db.Timestamptz(6)
-  firstTriagedAt    DateTime? @db.Timestamptz(6)
-  firstContactedAt  DateTime? @db.Timestamptz(6)
-  readyToScheduleAt DateTime? @db.Timestamptz(6)
-  scheduledAt       DateTime? @db.Timestamptz(6)
-  closedAt          DateTime? @db.Timestamptz(6)
-  closedReason      String?
-
-  lastActivityAt DateTime @default(now()) @db.Timestamptz(6)
-
-  deletedAt DateTime? @db.Timestamptz(6)
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
-
-  statusHistory   ReferralStatusHistory[]
-  activities      ReferralActivity[]
-  contactAttempts ContactAttempt[]
-  documents       Document[]
-  touchMetrics    ReferralTouchMetrics?
-  intakeItem      IntakeItem?
-  triageEvaluations TriageEvaluation[]
-
-  /// The evaluation currently shown on the referral. Points at an immutable row.
-  currentTriageEvaluationId String? @db.Uuid
-  confirmedCategoryId       String? @db.Uuid
-  triageConfirmedByUserId   String? @db.Uuid
-  triageConfirmedAt         DateTime? @db.Timestamptz(6)
-
-  @@index([organizationId, status, receivedAt])
-  @@index([organizationId, assignedUserId, status])
-  @@index([organizationId, referringOrganizationId, receivedAt])
-  @@index([organizationId, receivedAt])
-  @@index([organizationId, lastActivityAt])
-  @@map("referrals")
-}
-
-/// Append-only. Normal users cannot edit or delete these — enforced by trigger.
-model ReferralStatusHistory {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  referralId     String @db.Uuid
-  referral       Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
-
-  fromStatus     ReferralStatus?
-  toStatus       ReferralStatus
-  actorType      ActorType @default(USER)
-  changedByUserId String? @db.Uuid
-  reason         String?
-  changedAt      DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([organizationId, referralId, changedAt])
-  @@map("referral_status_history")
-}
-
-/// The operational timeline. Append-only.
-/// `metadata` carries IDs and field names — never PHI values.
-model ReferralActivity {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  referralId     String @db.Uuid
-  referral       Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
-
-  type       ActivityType
-  actorType  ActorType @default(USER)
-  userId     String? @db.Uuid
-  user       User? @relation(fields: [userId], references: [id])
-  occurredAt DateTime @default(now()) @db.Timestamptz(6)
-  note       String?
-  subjectType String?
-  subjectId   String? @db.Uuid
-  metadata    Json?
-
-  @@index([organizationId, referralId, occurredAt])
-  @@map("referral_activities")
-}
-
-model ContactAttempt {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  referralId     String @db.Uuid
-  referral       Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
-  patientId      String @db.Uuid
-  patient        Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  attemptedAt   DateTime @default(now()) @db.Timestamptz(6)
-  userId        String? @db.Uuid
-  user          User? @relation(fields: [userId], references: [id])
-  method        ContactMethod
-  outcome       ContactOutcome
-  note          String?
-  nextAttemptAt DateTime? @db.Timestamptz(6)
-  createdAt     DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([organizationId, referralId, attemptedAt])
-  @@map("contact_attempts")
-}
-
-/// Denormalized for reporting. Recomputed on every status transition so reports
-/// never scan the referral table. Business-second variants respect the org calendar.
-model ReferralTouchMetrics {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  referralId     String @unique @db.Uuid
-  referral       Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
-
-  secondsToFirstTouch    Int?
-  secondsToFirstTriage   Int?
-  secondsToFirstContact  Int?
-  secondsToReadyToSchedule Int?
-  secondsToScheduled     Int?
-  secondsTotalLifecycle  Int?
-
-  businessSecondsToFirstTouch Int?
-  businessSecondsToScheduled  Int?
-
-  computedAt DateTime @default(now()) @db.Timestamptz(6)
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([organizationId])
-  @@map("referral_touch_metrics")
-}
-
-// ---------------------------------------------------------------------------
-// Documents and bulk intake (structure now; pipeline is Phase 4)
-// ---------------------------------------------------------------------------
-
-model Document {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  /// Nullable on purpose: a bulk-dropped packet exists before its referral does.
-  referralId String? @db.Uuid
-  referral   Referral? @relation(fields: [referralId], references: [id])
-  patientId  String? @db.Uuid
-  patient    Patient? @relation(fields: [patientId], references: [id])
-
-  /// Drive filenames routinely contain patient names. Treated as PHI:
-  /// never logged, never in a URL, never in a job payload or audit value.
-  filenameOriginal String
-  contentType      String
-  byteSize         Int
-  sha256           String
-  storageKey       String
-  pageCount        Int?
-  documentType     DocumentType @default(OTHER)
-  documentDate     DateTime? @db.Date
-  uploadedByUserId String? @db.Uuid
-  uploadedBy       User? @relation(fields: [uploadedByUserId], references: [id])
-  /// Distinct from Referral.receivedAt.
-  uploadedAt       DateTime @default(now()) @db.Timestamptz(6)
-  processingStatus ProcessingStatus @default(PENDING)
-  processingErrorCode String?
-  packetCoverage   Int?
-  quarantinedAt    DateTime? @db.Timestamptz(6)
-  quarantineReason String?
-
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
-
-  intakeItem IntakeItem?
-
-  @@unique([organizationId, sha256])
-  @@index([organizationId, referralId])
-  @@map("documents")
-}
-
-model IntakeBatch {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  createdByUserId String? @db.Uuid
-  createdBy       User? @relation(fields: [createdByUserId], references: [id])
-  sourceLabel     String?
-  fileCount       Int @default(0)
-  bytesTotal      BigInt @default(0)
-  status          IntakeBatchStatus @default(UPLOADING)
-  /// Live referrals always preempt a backlog migration.
-  priority        IntakePriority @default(BACKLOG)
-  completedAt     DateTime? @db.Timestamptz(6)
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
-
-  items IntakeItem[]
-
-  @@index([organizationId, status])
-  @@map("intake_batches")
-}
-
-model IntakeItem {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  intakeBatchId  String @db.Uuid
-  intakeBatch    IntakeBatch @relation(fields: [intakeBatchId], references: [id], onDelete: Cascade)
-
-  filenameOriginal String
-  sha256           String
-  byteSize         Int
-  state            IntakeItemState @default(QUEUED)
-  errorCode        String?
-
-  documentId String? @unique @db.Uuid
-  document   Document? @relation(fields: [documentId], references: [id])
-  /// The draft referral proposed from this packet. Nothing goes live unconfirmed.
-  draftReferralId String? @unique @db.Uuid
-  draftReferral   Referral? @relation(fields: [draftReferralId], references: [id])
-  duplicateOfDocumentId String? @db.Uuid
-
-  /// Each proposed field carries its value, confidence and evidence ids.
-  proposedFields Json?
-  reviewedByUserId String? @db.Uuid
-  reviewedAt       DateTime? @db.Timestamptz(6)
-
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @db.Timestamptz(6)
-
-  /// Makes re-dropping the same folder idempotent.
-  @@unique([organizationId, sha256])
-  @@index([organizationId, state])
-  @@map("intake_items")
-}
-
-// ---------------------------------------------------------------------------
-// Audit
-// ---------------------------------------------------------------------------
-
-/// Append-only, enforced by a database trigger AND by the app role's grants.
-/// `metadata` records which field changed, never the value.
-model AuditLog {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  userId     String? @db.Uuid
-  user       User? @relation(fields: [userId], references: [id])
-  actorType  ActorType @default(USER)
-  action     AuditAction
-  resourceType String
-  resourceId   String?
-  occurredAt DateTime @default(now()) @db.Timestamptz(6)
-  ipHash     String?
-  userAgent  String?
-  metadata   Json?
-
-  @@index([organizationId, occurredAt])
-  @@index([organizationId, resourceType, resourceId])
-  @@index([organizationId, userId, occurredAt])
-  @@map("audit_logs")
-}
-
-// ---------------------------------------------------------------------------
-// Enums
-// ---------------------------------------------------------------------------
-
-enum UnknownDiagnosisBehavior {
-  YELLOW
-  UNKNOWN
-}
 
 enum OrgStatus {
   ACTIVE
   SUSPENDED
 }
+
+model Organization {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String    @unique
+  /// Practice type. General dentistry is the only supported value today; the
+  /// column exists so specialty rule packs can be added without a migration.
+  practiceType String @default("GENERAL_DENTISTRY")
+  timezone  String    @default("America/New_York")
+  status    OrgStatus @default(ACTIVE)
+
+  /// When false, clinical input text is discarded after the response is
+  /// produced and only structured, non-clinical metadata is retained.
+  /// See docs/SECURITY.md — data minimisation.
+  retainQueryText Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  sessions      Session[]
+  codingQueries CodingQuery[]
+  queryMessages CodingQueryMessage[]
+  savedCases    SavedCase[]
+  usageEvents   UsageEvent[]
+  aiRequests    AiRequest[]
+  subscription  Subscription?
+
+  @@map("organizations")
+}
+
 enum UserStatus {
   ACTIVE
   DISABLED
 }
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  name         String
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+
+  /// Grants access to the internal admin area at /admin. Set manually — there
+  /// is deliberately no UI that can promote a user to platform administrator.
+  isPlatformAdmin Boolean @default(false)
+
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(6)
+  lastSeenAt DateTime? @db.Timestamptz(6)
+
+  memberships    Membership[]
+  sessions       Session[]
+  passwordResets PasswordResetToken[]
+  codingQueries  CodingQuery[]
+  savedCases     SavedCase[]
+  usageEvents    UsageEvent[]
+
+  @@map("users")
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 enum MembershipStatus {
-  INVITED
   ACTIVE
-  SUSPENDED
+  DISABLED
 }
 
-enum RoleKey {
-  ADMINISTRATOR
-  MANAGER
-  REFERRAL_COORDINATOR
-  FRONT_DESK
-  MARKETING
-}
-
-enum ReferralStatus {
-  NEW
-  UNDER_REVIEW
-  MISSING_INFORMATION
-  WAITING_ON_REFERRING_OFFICE
-  READY_TO_CONTACT
-  PATIENT_CONTACTED
-  READY_TO_SCHEDULE
-  SCHEDULED
-  DECLINED
-  UNABLE_TO_REACH
-  NOT_ACCEPTED
-  CLOSED
-}
-
-enum ReferralPriority {
-  ROUTINE
-  EXPEDITE
-}
-enum IntakeChannel {
-  FAX
-  PORTAL
-  PHONE
-  EMAIL
-  MANUAL
-  API
-}
-enum ActorType {
-  USER
-  SYSTEM
-}
-enum MatchStatus {
-  OPEN
-  LINKED
-  DISMISSED
-}
-enum EhrLinkMethod {
-  MANUAL
-  API
-}
-
-enum ContactMethod {
-  PHONE
-  VOICEMAIL
-  TEXT
-  EMAIL
-  MAIL
-  IN_PERSON
-}
-enum ContactOutcome {
-  REACHED
-  LEFT_VOICEMAIL
-  NO_ANSWER
-  WRONG_NUMBER
-  DECLINED
-  CALLBACK_REQUESTED
-}
-
-enum DocumentType {
-  REFERRAL_ORDER
-  DEMOGRAPHICS
-  INSURANCE_CARD
-  OFFICE_NOTE
-  LAB
-  IMAGING
-  DXA
-  OTHER
-}
-
-enum ProcessingStatus {
-  PENDING
-  PROCESSING
-  COMPLETE
-  FAILED
-  QUARANTINED
-}
-enum IntakeBatchStatus {
-  UPLOADING
-  PROCESSING
-  REVIEW
-  COMPLETE
-  FAILED
-}
-enum IntakePriority {
-  LIVE
-  BACKLOG
-}
-enum IntakeItemState {
-  QUEUED
-  UPLOADING
-  PROCESSING
-  NEEDS_REVIEW
-  CONFIRMED
-  DUPLICATE
-  FAILED
-}
-
-enum ActivityType {
-  REFERRAL_RECEIVED
-  REFERRAL_CREATED
-  DOCUMENT_UPLOADED
-  DOCUMENT_PROCESSED
-  DIAGNOSIS_IDENTIFIED
-  TRIAGE_GENERATED
-  TRIAGE_CONFIRMED
-  INFORMATION_REQUESTED
-  DOCUMENT_RECEIVED
-  ASSIGNMENT_CHANGED
-  STATUS_CHANGED
-  CONTACT_ATTEMPT
-  PATIENT_REACHED
-  SCHEDULED
-  EHR_PATIENT_LINKED
-  NOTE_ADDED
-  REFERRAL_CLOSED
-}
-
-enum AuditAction {
-  LOGIN_SUCCESS
-  LOGIN_FAILURE
-  LOGOUT
-  MFA_ENROLLED
-  MFA_CHALLENGE_SUCCESS
-  MFA_CHALLENGE_FAILURE
-  SESSION_REVOKED
-  PATIENT_VIEW
-  PATIENT_SEARCH
-  REFERRAL_VIEW
-  REFERRAL_LIST
-  DOCUMENT_VIEW
-  DOCUMENT_DOWNLOAD
-  RECORD_CREATE
-  RECORD_UPDATE
-  RECORD_DELETE
-  STATUS_CHANGE
-  ASSIGNMENT_CHANGE
-  TRIAGE_OVERRIDE
-  EHR_LINK_CREATED
-  PATIENT_MERGE_REVIEWED
-  RULE_PUBLISH
-  CONFIG_CHANGE
-  ROLE_CHANGE
-  USER_CREATE
-  USER_DISABLE
-  EXPORT
-}
-
-// ---------------------------------------------------------------------------
-// Phase 3 — clinical reference data, organization rule packs, evaluations
-// ---------------------------------------------------------------------------
-
-/// Global ICD-10-CM reference. NOT tenant-scoped: the code set is public-domain
-/// CMS data, identical for every organization. Version-stamped by release year
-/// so a referral matches against the codes in force when it was received —
-/// otherwise the annual update would silently rewrite history.
-model DiagnosisCode {
-  id               String  @id @default(uuid()) @db.Uuid
-  code             String
-  /// Dot removed, for prefix and range matching.
-  codeNormalized   String
-  descriptionShort String
-  descriptionLong  String?
-  chapter          String?
-  category3        String
-  versionYear      Int
-  isBillable       Boolean @default(true)
-  isActive         Boolean @default(true)
-  createdAt        DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
-
-  @@unique([code, versionYear])
-  @@index([versionYear, codeNormalized])
-  @@index([versionYear, category3])
-  @@map("diagnosis_codes")
-}
-
-/// An organization's clinical concept — "Rheumatoid Arthritis". Rules reference
-/// categories, not raw codes, so a code-set update never rewrites a policy.
-model ReferralCategory {
+model Membership {
   id             String @id @default(uuid()) @db.Uuid
   organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String @db.Uuid
 
-  key         String
-  name        String
-  description String?
-  specialty   String  @default("RHEUMATOLOGY")
-  isActive    Boolean @default(true)
-  sortOrder   Int     @default(0)
-  createdAt   DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  role   MemberRole       @default(MEMBER)
+  status MembershipStatus @default(ACTIVE)
 
-  codeMaps  ReferralCategoryCodeMap[]
-  synonyms  DiagnosisSynonym[]
-  candidates DiagnosisCandidate[]
-
-  @@unique([organizationId, key])
-  @@map("referral_categories")
-}
-
-/// Maps a category to codes. Where the triage guide names a condition spanning
-/// several codes we store the FAMILY or RANGE, never a guessed leaf.
-model ReferralCategoryCodeMap {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  categoryId     String @db.Uuid
-  category       ReferralCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  matchType       CodeMatchType
-  /// A full code for EXACT, a prefix for FAMILY, the low bound for RANGE.
-  value           String
-  /// High bound, RANGE only.
-  valueTo         String?
-  weight          Int     @default(100)
-  /// Shown when specificity depends on information a referral may not contain.
-  specificityNote String?
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([organizationId, categoryId])
-  @@map("referral_category_code_maps")
-}
-
-/// Curated in-house synonyms. Abbreviations carry a low standalone weight:
-/// "RA" alone never establishes rheumatoid arthritis, it corroborates.
-model DiagnosisSynonym {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  categoryId     String @db.Uuid
-  category       ReferralCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  term           String
-  termNormalized String
-  matchMode      SynonymMatchMode @default(PHRASE)
-  weight         Int              @default(60)
-  createdAt      DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([organizationId, categoryId])
-  @@map("diagnosis_synonyms")
-}
-
-/// An immutable snapshot of the organization's policy. Publishing freezes it;
-/// editing copy-on-writes a new draft. Every evaluation names the version that
-/// produced it, so "why did the system say this on that date" stays answerable.
-model RuleSetVersion {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  version         Int
-  status          RuleSetStatus @default(DRAFT)
-  sourceRulePack  String?
-  notes           String?
-  publishedAt     DateTime? @db.Timestamptz(6)
-  publishedByUserId String? @db.Uuid
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
-
-  rules        TriageRule[]
-  requirements RequirementDefinition[]
-  payerRules   PayerRule[]
-  evaluations  TriageEvaluation[]
-
-  @@unique([organizationId, version])
-  @@index([organizationId, status])
-  @@map("rule_set_versions")
-}
-
-model TriageRule {
-  id               String @id @default(uuid()) @db.Uuid
-  organizationId   String @db.Uuid
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  ruleSetVersionId String @db.Uuid
-  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id], onDelete: Cascade)
-
-  dimension  TriageDimension
-  name       String
-  /// Lower runs first. Ties are broken deterministically by name.
-  priority   Int     @default(100)
-  /// Zod-validated discriminated union; see src/lib/rules/conditions.ts.
-  condition  Json
-  outcome    TriageOutcome
-  blocking   Boolean @default(false)
-  /// The sentence shown to staff in the explanation. Written by the organization.
-  rationale  String
-  isActive   Boolean @default(true)
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
-
-  actions TriageRuleAction[]
-
-  @@index([organizationId, ruleSetVersionId, dimension])
-  @@map("triage_rules")
-}
-
-model TriageRuleAction {
-  id             String @id @default(uuid()) @db.Uuid
-  organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  triageRuleId   String @db.Uuid
-  triageRule     TriageRule @relation(fields: [triageRuleId], references: [id], onDelete: Cascade)
-
-  type      RuleActionType
-  params    Json?
-  createdAt DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([organizationId, triageRuleId])
-  @@map("triage_rule_actions")
-}
-
-/// Only REQUIRED items block readiness. RECOMMENDED and OPTIONAL are surfaced
-/// so staff can chase them, but a generic clinical suggestion is not practice
-/// policy and must never hold up a patient.
-model RequirementDefinition {
-  id               String @id @default(uuid()) @db.Uuid
-  organizationId   String @db.Uuid
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  ruleSetVersionId String @db.Uuid
-  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id], onDelete: Cascade)
-
-  key   String
-  label String
-  level RequirementLevel @default(REQUIRED)
-  /// Null means the requirement applies to every referral.
-  appliesToCategoryKey String?
-  /// Detector spec for Phase 4's packet search: terms, regexes, section hints.
-  detector Json?
-  sortOrder Int @default(0)
   createdAt DateTime @default(now()) @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-  @@unique([ruleSetVersionId, key, appliesToCategoryKey])
-  @@index([organizationId, ruleSetVersionId])
-  @@map("requirement_definitions")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+  @@map("organization_members")
 }
 
-/// Payer policy is organization configuration, never global application code.
-model PayerRule {
-  id               String @id @default(uuid()) @db.Uuid
-  organizationId   String @db.Uuid
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  ruleSetVersionId String @db.Uuid
-  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id], onDelete: Cascade)
+model Invitation {
+  id             String     @id @default(uuid()) @db.Uuid
+  organizationId String     @db.Uuid
+  email          String
+  role           MemberRole @default(MEMBER)
+  /// Only the HMAC of the invitation token is stored.
+  tokenHash      String     @unique
+  expiresAt      DateTime   @db.Timestamptz(6)
+  acceptedAt     DateTime?  @db.Timestamptz(6)
+  revokedAt      DateTime?  @db.Timestamptz(6)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime   @updatedAt @db.Timestamptz(6)
 
-  /// Either a specific payer or a whole category. A category rule means a newly
-  /// added plan inherits the policy instead of quietly defaulting to accepted.
-  payerId       String? @db.Uuid
-  payerCategory String?
-  outcome       TriageOutcome
-  /// Why, in the organization's own words. Shown to staff, never to a patient.
-  rationale     String
-  isActive      Boolean @default(true)
-  createdAt     DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([organizationId, ruleSetVersionId])
-  @@map("payer_rules")
+  @@index([organizationId, email])
+  @@map("invitations")
 }
 
-/// One evaluation run. Append-only: re-running triage creates a new row and
-/// marks the old one superseded, so history is never rewritten.
-model TriageEvaluation {
+model Session {
+  id             String @id @default(uuid()) @db.Uuid
+  userId         String @db.Uuid
+  organizationId String @db.Uuid
+
+  /// Sessions are a random 256-bit token in an httpOnly cookie, stored only as
+  /// an HMAC. A database read cannot reconstruct a usable session.
+  tokenHash String @unique
+
+  ipHash    String?
+  userAgent String?
+
+  idleExpiresAt     DateTime  @db.Timestamptz(6)
+  absoluteExpiresAt DateTime  @db.Timestamptz(6)
+  revokedAt         DateTime? @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(6)
+  usedAt    DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Procedure-code reference data  (GLOBAL — not tenant-scoped)
+//
+// This is the "approved structured reference database" the coding engine
+// retrieves candidates from. The language model never supplies a code.
+//
+// LICENSING BOUNDARY: `officialDescriptor` is the only field that may hold
+// wording from a licensed CDT distribution. It ships NULL and is populated
+// exclusively by scripts/import-codes.ts against a dataset the operator is
+// licensed to use. Every other text field is our own independent writing.
+// ---------------------------------------------------------------------------
+
+model CodeDataset {
+  id   String @id @default(uuid()) @db.Uuid
+  /// Stable key, e.g. "demo-general-dentistry" or "cdt-2026-licensed".
+  key  String @unique
+  name String
+
+  /// DEMO datasets carry no licensed content and are labelled as sample data
+  /// throughout the UI. LICENSED datasets may carry official descriptors.
+  kind        DatasetKind @default(DEMO)
+  /// Free-text provenance, e.g. "ADA CDT 2026, license #12345".
+  sourceNote  String?
+  /// Exactly one dataset is active at a time; the engine retrieves only from it.
+  isActive    Boolean     @default(false)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  codes ProcedureCode[]
+
+  @@map("code_datasets")
+}
+
+enum DatasetKind {
+  DEMO
+  LICENSED
+}
+
+enum ProcedureCategory {
+  DIAGNOSTIC
+  PREVENTIVE
+  RESTORATIVE
+  ENDODONTICS
+  PERIODONTICS
+  PROSTHODONTICS_REMOVABLE
+  PROSTHODONTICS_FIXED
+  IMPLANT_SERVICES
+  ORAL_SURGERY
+  ADJUNCTIVE
+}
+
+enum CodeStatus {
+  ACTIVE
+  DEPRECATED
+}
+
+model ProcedureCode {
+  id        String @id @default(uuid()) @db.Uuid
+  datasetId String @db.Uuid
+
+  /// The code number itself, e.g. "D2392". A code number is a short factual
+  /// identifier, not licensed descriptive text.
+  code     String
+  category ProcedureCategory
+  /// Our own grouping within a category, e.g. "Posterior composite".
+  subcategory String?
+
+  /// ---- Our own independently written content ----
+  /// Short label shown in result cards.
+  shortLabel   String
+  /// Plain-English explanation of what the code covers.
+  plainLanguage String
+  /// When practices typically reach for this code.
+  commonUse    String?
+  /// What separates this code from the ones it is confused with.
+  distinctions String?
+  /// Information that matters when choosing this code.
+  documentationConsiderations String[] @default([])
+  /// Questions that help confirm this is the right selection.
+  verifyQuestions             String[] @default([])
+
+  /// ---- Licensed content boundary ----
+  /// NULL in the demo dataset. Populated only from a licensed import.
+  officialDescriptor       String?
+  officialDescriptorSource String?
+
+  status    CodeStatus @default(ACTIVE)
+  createdAt DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(6)
+
+  dataset       CodeDataset                 @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  attributes    ProcedureCodeAttribute[]
+  relationsFrom ProcedureCodeRelationship[] @relation("relationFrom")
+  relationsTo   ProcedureCodeRelationship[] @relation("relationTo")
+  docRules      DocumentationRule[]
+
+  @@unique([datasetId, code])
+  @@index([datasetId, category])
+  @@map("procedure_codes")
+}
+
+/// Structured coding attributes the deterministic ranker reads. Key/value
+/// rather than columns so a licensed import can carry attributes we have not
+/// modelled yet without a migration. Known keys live in src/lib/codes/attributes.ts.
+model ProcedureCodeAttribute {
+  id     String @id @default(uuid()) @db.Uuid
+  codeId String @db.Uuid
+
+  key       String
+  /// Canonical string form. Numeric keys parse as integers; boolean keys are
+  /// "true"/"false". The reader in src/lib/codes/attributes.ts enforces this.
+  value     String
+
+  code ProcedureCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  @@unique([codeId, key, value])
+  @@index([key, value])
+  @@map("procedure_code_attributes")
+}
+
+enum RelationshipType {
+  COMMONLY_CONFUSED_WITH
+  ALTERNATIVE_TO
+  BUNDLED_WITH
+  MUTUALLY_EXCLUSIVE_WITH
+  SAME_FAMILY_DIFFERENT_COUNT
+}
+
+model ProcedureCodeRelationship {
+  id           String           @id @default(uuid()) @db.Uuid
+  fromCodeId   String           @db.Uuid
+  toCodeId     String           @db.Uuid
+  type         RelationshipType
+  /// Our own note on how the two differ.
+  note         String?
+
+  fromCode ProcedureCode @relation("relationFrom", fields: [fromCodeId], references: [id], onDelete: Cascade)
+  toCode   ProcedureCode @relation("relationTo", fields: [toCodeId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCodeId, toCodeId, type])
+  @@index([toCodeId])
+  @@map("procedure_code_relationships")
+}
+
+/// Whether a documentation element is needed to CHOOSE a code, or is
+/// supporting material that may help a claim. The distinction is required by
+/// the product rules: we must not present the second as if it were the first.
+enum RequirementKind {
+  /// Materially affects which code is correct.
+  CODING_REQUIRED
+  /// Commonly requested by payers as support. Never stated as universal.
+  CLAIM_SUPPORT
+}
+
+enum RuleScope {
+  CATEGORY
+  CODE
+}
+
+/// Drives Step 4 (what is missing), Step 6 (documentation review) and the
+/// documentation completeness score. Deterministic and explainable: every
+/// point deducted maps to a row here.
+model DocumentationRule {
+  id    String    @id @default(uuid()) @db.Uuid
+  scope RuleScope
+
+  /// Set when scope = CATEGORY.
+  category ProcedureCategory?
+  /// Set when scope = CODE.
+  codeId   String?            @db.Uuid
+
+  /// Fact key this rule tests, e.g. "tooth_numbers". Matches the extracted
+  /// fact schema in src/lib/coding/facts.ts.
+  factKey String
+  /// Shown in the documentation checklist, e.g. "Tooth number".
+  label   String
+  kind    RequirementKind
+  /// Relative contribution to the completeness score. CLAIM_SUPPORT rules
+  /// score too, but are reported in their own section.
+  weight  Int             @default(1)
+  /// The question to ask when this fact is absent. Plain, non-leading, and
+  /// never phrased as a suggestion to document something that did not occur.
+  promptQuestion String
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  code ProcedureCode? @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  @@index([scope, category])
+  @@index([codeId])
+  @@map("documentation_rules")
+}
+
+// ---------------------------------------------------------------------------
+// Coding work  (tenant-scoped)
+// ---------------------------------------------------------------------------
+
+enum CodingTool {
+  FIND_CODE
+  CHECK_CODE
+  DOCUMENTATION_CHECK
+  CLAIM_SCRUBBER
+}
+
+enum QueryStatus {
+  /// The engine asked a clarifying question and is waiting for an answer.
+  NEEDS_INPUT
+  COMPLETE
+  FAILED
+}
+
+model CodingQuery {
   id             String @id @default(uuid()) @db.Uuid
   organizationId String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  referralId     String @db.Uuid
-  referral       Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  userId         String @db.Uuid
 
-  ruleSetVersionId String @db.Uuid
-  ruleSetVersion   RuleSetVersion @relation(fields: [ruleSetVersionId], references: [id])
+  tool   CodingTool
+  status QueryStatus @default(COMPLETE)
 
-  engineVersion   String
-  trigger         EvaluationTrigger @default(AUTOMATIC)
-  evaluatedAt     DateTime @default(now()) @db.Timestamptz(6)
-  finalDisposition TriageOutcome
-  dispositionConfidence Int
-  nextAction      String
-  /// Hash of the facts, so an identical re-run is recognisable as such.
-  factsHash       String
-  supersededById  String? @db.Uuid
-  createdAt       DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+  /// The clinical description as entered. Cleared when the organization has
+  /// retainQueryText = false. Never written to application logs.
+  inputText String?
+  /// A short, non-clinical label for list views, derived deterministically
+  /// (e.g. "Restorative · #30").
+  displayLabel String?
 
-  dimensionResults   TriageDimensionResult[]
-  diagnosisCandidates DiagnosisCandidate[]
-  requirementResults  ReferralRequirementResult[]
+  /// The validated CodingResult. Codes inside have already been checked to
+  /// exist in the active dataset before this was written.
+  result Json?
 
-  @@index([organizationId, referralId, evaluatedAt])
-  @@map("triage_evaluations")
+  confidence  Confidence?
+  /// Denormalised for list views and usage reporting.
+  primaryCode String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     CodingQueryMessage[]
+  savedCases   SavedCase[]
+  aiRequests   AiRequest[]
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, userId, createdAt(sort: Desc)])
+  @@map("coding_queries")
 }
 
-model TriageDimensionResult {
-  id                 String @id @default(uuid()) @db.Uuid
-  organizationId     String @db.Uuid
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  triageEvaluationId String @db.Uuid
-  triageEvaluation   TriageEvaluation @relation(fields: [triageEvaluationId], references: [id], onDelete: Cascade)
-
-  dimension     TriageDimension
-  outcome       TriageOutcome
-  summary       String
-  matchedRuleIds String[]
-  blocking      Boolean @default(false)
-  /// True when this dimension decided the final disposition.
-  decisive      Boolean @default(false)
-  sortOrder     Int     @default(0)
-  createdAt     DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([organizationId, triageEvaluationId])
-  @@map("triage_dimension_results")
+enum Confidence {
+  HIGH
+  MEDIUM
+  LOW
 }
 
-model DiagnosisCandidate {
-  id                 String @id @default(uuid()) @db.Uuid
-  organizationId     String @db.Uuid
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  triageEvaluationId String @db.Uuid
-  triageEvaluation   TriageEvaluation @relation(fields: [triageEvaluationId], references: [id], onDelete: Cascade)
-  categoryId         String @db.Uuid
-  category           ReferralCategory @relation(fields: [categoryId], references: [id])
-
-  rank                Int
-  isPrimary           Boolean @default(false)
-  diagnosisConfidence Int
-  matchType           CodeMatchType
-  strongestContext    EvidenceContext @default(UNKNOWN)
-  polarity            EvidencePolarity @default(AFFIRMED)
-  bestCode            String?
-  /// Shown side by side when specificity genuinely cannot be determined.
-  possibleCodes       Json?
-  /// Every scoring term that fired, with its value. Renders "why this score?".
-  breakdown           Json?
-  createdAt           DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([organizationId, triageEvaluationId])
-  @@map("diagnosis_candidates")
+enum MessageRole {
+  /// The practice's description of what was done.
+  USER
+  /// A clarifying question from the engine.
+  ASSISTANT_QUESTION
+  /// The practice's answer to a clarifying question.
+  USER_ANSWER
 }
 
-model ReferralRequirementResult {
-  id                 String @id @default(uuid()) @db.Uuid
-  organizationId     String @db.Uuid
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  triageEvaluationId String @db.Uuid
-  triageEvaluation   TriageEvaluation @relation(fields: [triageEvaluationId], references: [id], onDelete: Cascade)
+model CodingQueryMessage {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  queryId        String @db.Uuid
 
-  requirementKey  String
-  label           String
-  level           RequirementLevel
-  /// Three states, not two. UNCHECKED is not the same as ABSENT: before the
-  /// packet has been read, nobody has established that anything is missing,
-  /// and asserting an absence nobody has checked is how a patient gets held up
-  /// for a document that was in the fax all along.
-  status          RequirementStatus @default(UNCHECKED)
-  /// Strength of a match that exists. Absence is reported as search coverage
-  /// instead — a calibrated probability that something is absent is not
-  /// achievable yet, and a precise-looking number invites misplaced trust.
-  detectionConfidence Int?
-  searchCoverage      Int?
-  humanOverride       Boolean @default(false)
-  overriddenByUserId  String? @db.Uuid
-  overriddenAt        DateTime? @db.Timestamptz(6)
-  createdAt           DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
+  role    MessageRole
+  content String
+  /// For ASSISTANT_QUESTION: the fact key the question is trying to resolve.
+  factKey String?
 
-  @@index([organizationId, triageEvaluationId])
-  @@map("referral_requirement_results")
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  query        CodingQuery  @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, queryId, createdAt])
+  @@map("coding_query_messages")
 }
 
-enum CodeMatchType {
-  EXACT_CODE
-  CODE_FAMILY
-  CODE_RANGE
-  DIAGNOSIS_CATEGORY
-  TEXT_SYNONYM
-  NONE
+model SavedCase {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  userId         String @db.Uuid
+  queryId        String? @db.Uuid
+
+  title String
+  notes String?
+  /// Denormalised so a saved case survives dataset changes as a record of
+  /// what was recommended at the time.
+  codes String[] @default([])
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query        CodingQuery? @relation(fields: [queryId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("saved_cases")
 }
 
-enum SynonymMatchMode {
-  PHRASE
-  ABBREVIATION
-  TOKEN
+// ---------------------------------------------------------------------------
+// Usage, cost and billing  (tenant-scoped)
+// ---------------------------------------------------------------------------
+
+model UsageEvent {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  userId         String? @db.Uuid
+
+  /// e.g. "query.completed", "query.clarification_asked", "case.saved".
+  eventType String
+  tool      CodingTool?
+  /// Non-clinical metadata only: counts, durations, enum values.
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@map("usage_events")
 }
 
-enum RuleSetStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
+/// One row per call to the AI provider. Holds no clinical text — only counts,
+/// cost and outcome, so the admin area can report spend without reading notes.
+model AiRequest {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @db.Uuid
+  queryId        String? @db.Uuid
+
+  provider String
+  model    String
+  purpose  String
+
+  inputTokens  Int @default(0)
+  outputTokens Int @default(0)
+  /// Tenth-of-a-cent precision keeps per-request cost from rounding to zero.
+  costMillicents Int @default(0)
+  latencyMs    Int @default(0)
+
+  success   Boolean @default(true)
+  errorCode String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  query        CodingQuery? @relation(fields: [queryId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("ai_requests")
 }
 
-enum TriageDimension {
-  DIAGNOSIS
-  PAYER
-  DOCUMENTATION
-  REFERRAL_SOURCE
-  PATIENT_STATUS
-  ORG_EXCEPTION
-  PROVIDER_REVIEW
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
 
-enum TriageOutcome {
-  GREEN
-  YELLOW
-  RED
-  INCOMPLETE
-  UNKNOWN
-  REVIEW
-  NO_EFFECT
-}
+/// Stripe is not wired up in the MVP. These columns are the seam: when Stripe
+/// is connected, the webhook handler writes to exactly these fields and
+/// nothing else in the application needs to change.
+model Subscription {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @unique @db.Uuid
 
-enum RuleActionType {
-  REQUIRE_DOCUMENT
-  SET_PRIORITY
-  ADD_TAG
-  ROUTE_TO_ROLE
-  REQUEST_INFO_TEMPLATE
-  FLAG_PHYSICIAN_REVIEW
-}
+  plan   String             @default("dental_coding_assistant_monthly")
+  status SubscriptionStatus @default(TRIALING)
 
-enum RequirementLevel {
-  REQUIRED
-  RECOMMENDED
-  OPTIONAL
-}
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+  stripePriceId        String?
 
-enum RequirementStatus {
-  PRESENT
-  ABSENT
-  UNCHECKED
-}
+  /// Cents, so the displayed price never depends on a float.
+  unitAmountCents Int @default(9900)
+  currency        String @default("usd")
 
-enum EvaluationTrigger {
-  AUTOMATIC
-  REEVALUATION
-  SIMULATION
-}
+  trialEndsAt      DateTime? @db.Timestamptz(6)
+  currentPeriodEnd DateTime? @db.Timestamptz(6)
+  canceledAt       DateTime? @db.Timestamptz(6)
 
-enum EvidenceContext {
-  REFERRAL_REASON
-  ASSESSMENT_PLAN
-  ENCOUNTER_DIAGNOSIS
-  PROBLEM_LIST
-  HPI
-  PAST_HISTORY
-  FAMILY_HISTORY
-  BILLING
-  UNKNOWN
-}
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
 
-enum EvidencePolarity {
-  AFFIRMED
-  HEDGED
-  RULED_OUT
-  HISTORICAL
-  FAMILY
-  CONTRADICTS
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
 }

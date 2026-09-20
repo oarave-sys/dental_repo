@@ -6,15 +6,18 @@ import { unauthenticated } from '@/lib/errors'
 /**
  * Opaque-token database sessions.
  *
- * Deviation from the brief, recorded in docs/DECISIONS.md: Auth.js's credentials
- * provider mandates JWT sessions, which cannot be revoked server-side and cannot
- * express an MFA step-up or an idle timeout. Both are launch requirements here,
- * so sessions are a random 256-bit token in an httpOnly cookie, stored only as
- * an HMAC. A database read cannot reconstruct a usable session.
+ * The session is a random 256-bit token in an httpOnly cookie, stored only as
+ * an HMAC. A database read cannot reconstruct a usable session, and a session
+ * can be revoked server-side — which a stateless JWT cannot.
+ *
+ * Timeouts are longer than a clinical system would use: this product holds no
+ * PHI by design, and a chairside user signing in repeatedly all day is the
+ * fastest way to get a practice to stop using it. The values tighten when PHI
+ * handling is enabled — see docs/SECURITY.md.
  */
-export const SESSION_COOKIE = 'ros_session'
-export const IDLE_TIMEOUT_MS = 15 * 60 * 1000
-export const ABSOLUTE_TIMEOUT_MS = 12 * 60 * 60 * 1000
+export const SESSION_COOKIE = 'dca_session'
+export const IDLE_TIMEOUT_MS = 12 * 60 * 60 * 1000
+export const ABSOLUTE_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000
 
 export interface IssuedSession {
   token: string
@@ -25,7 +28,6 @@ export interface IssuedSession {
 export async function issueSession(params: {
   userId: string
   organizationId: string
-  mfaSatisfied: boolean
   ip?: string | null
   userAgent?: string | null
 }): Promise<IssuedSession> {
@@ -40,7 +42,6 @@ export async function issueSession(params: {
       userId: params.userId,
       organizationId: params.organizationId,
       tokenHash: hashToken(token),
-      mfaSatisfied: params.mfaSatisfied,
       ipHash: hashIp(params.ip),
       userAgent: params.userAgent?.slice(0, 300) ?? null,
       idleExpiresAt,
@@ -60,7 +61,7 @@ export interface ResolvedSession {
  *
  * This is the one place tenancy originates. `organizationId` comes from the
  * session row — never from a request body, header, query parameter, or any
- * client-influenced value.
+ * other client-influenced value.
  *
  * Runs unscoped by necessity: the organization is not known until this returns.
  * That is why the identity tables use the BOOTSTRAP row-level-security tier.
@@ -91,7 +92,6 @@ export async function resolveSession(token: string | undefined): Promise<Resolve
         organizationId: session.organizationId,
       },
     },
-    include: { roles: { include: { role: { select: { key: true } } } } },
   })
   if (!membership || membership.status !== 'ACTIVE') return null
 
@@ -111,22 +111,14 @@ export async function resolveSession(token: string | undefined): Promise<Resolve
       organizationId: session.organizationId,
       email: session.user.email,
       name: session.user.name,
-      roleKeys: membership.roles.map((r) => r.role.key as RoleKey),
-      mfaSatisfied: session.mfaSatisfied,
+      role: membership.role as RoleKey,
+      isPlatformAdmin: session.user.isPlatformAdmin,
     }),
   }
 }
 
-export async function markMfaSatisfied(sessionId: string): Promise<void> {
-  await unsafeCrossTenantClient().session.update({
-    where: { id: sessionId },
-    data: { mfaSatisfied: true },
-  })
-}
-
 export async function revokeSession(token: string): Promise<void> {
-  const db = unsafeCrossTenantClient()
-  await db.session.updateMany({
+  await unsafeCrossTenantClient().session.updateMany({
     where: { tokenHash: hashToken(token), revokedAt: null },
     data: { revokedAt: new Date() },
   })
