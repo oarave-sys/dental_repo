@@ -297,7 +297,7 @@ function eruptedState(text: string): string | null {
   return null
 }
 
-function crownMaterial(text: string, materials: string[]): string | null {
+function crownMaterial(materials: string[]): string | null {
   if (materials.includes('zirconia')) return 'zirconia'
   if (materials.includes('lithium disilicate')) return 'lithium disilicate'
   if (materials.includes('porcelain fused to metal')) return 'porcelain fused to metal'
@@ -445,7 +445,7 @@ export function extractDeterministic(
       }
     }
     if (match.def.key === 'crown' || match.def.key === 'implant_crown') {
-      const cm = crownMaterial(text, intent.materials)
+      const cm = crownMaterial(intent.materials)
       if (cm) intent.attributes.crown_material = cm
     }
     if (match.def.key === 'fluoride_treatment') {
@@ -554,7 +554,7 @@ export function applyAnswers(
         case 'material': {
           const materials = allMatches(answer, MATERIALS)
           if (materials.length > 0) intent.materials = materials
-          const cm = crownMaterial(answer, materials)
+          const cm = crownMaterial(materials)
           if (cm) intent.attributes.crown_material = cm
           break
         }

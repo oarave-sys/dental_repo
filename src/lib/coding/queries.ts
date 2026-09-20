@@ -3,8 +3,6 @@ import { notFound } from '@/lib/errors'
 import { recordAiRequest, recordUsage, type Tool } from '@/lib/usage'
 import type { ExtractionUsage } from './ai'
 import type { CodingResult } from './result'
-import { procedureLabel } from './vocabulary'
-import { formatTeeth } from './teeth'
 
 /**
  * Persistence for coding work.

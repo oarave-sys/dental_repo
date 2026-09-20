@@ -2,7 +2,7 @@ import { PROCEDURE_KEYS, categoryForKind } from './vocabulary'
 import { applyAnswers, extractDeterministic } from './extract-deterministic'
 import { parseTooth } from './teeth'
 import { parseSurfaceAnswer } from './surfaces'
-import { emptyIntent, type AiExtraction, type ExtractedFacts, type ProcedureIntent } from './facts'
+import { emptyIntent, type AiExtraction, type ExtractedFacts } from './facts'
 import type { ExtractionUsage, FactExtractionProvider } from './ai'
 
 /**

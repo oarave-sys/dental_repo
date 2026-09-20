@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { allText, codesOf, questionKeys, repository, run } from './helpers'
+import { codesOf, questionKeys, run } from './helpers'
 
 /**
  * The behaviours the product promises, expressed as tests.
