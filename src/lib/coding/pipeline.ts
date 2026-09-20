@@ -391,18 +391,21 @@ function buildReasoningSummary(
   }
 
   const lines: string[] = []
-  const named = procedures.length === 1 ? 'procedure' : `${procedures.length} procedures`
+  const named =
+    procedures.length === 1 ? 'one procedure' : `${procedures.length} procedures`
   lines.push(`Identified ${named} in the description.`)
 
   for (const procedure of procedures) {
     const top = procedure.recommended[0]
+    // The summary is not lowercased: it carries tooth numbers and surface
+    // shorthand, and "mod" reads as a word where "MOD" reads as surfaces.
     if (top) {
       lines.push(
-        `For ${procedure.procedureSummary.toLowerCase()}, ${top.code} is the most likely code based on ${top.matchedOn.join(' and ') || 'the procedure described'}.`,
+        `For ${procedure.procedureSummary}, ${top.code} is the most likely code based on ${top.matchedOn.join(' and ') || 'the procedure described'}.`,
       )
     } else if (procedure.awaitingAnswer) {
       lines.push(
-        `For ${procedure.procedureSummary.toLowerCase()}, more than one code remains possible until the question below is answered.`,
+        `For ${procedure.procedureSummary}, more than one code remains possible until one more detail is confirmed.`,
       )
     }
   }

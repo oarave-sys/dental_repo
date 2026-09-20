@@ -1,9 +1,19 @@
 import next from 'eslint-config-next'
 
-
 /**
- * Architecture layering is enforced here, not by convention.
- * See docs/ARCHITECTURE.md §1.3.
+ * Architecture layering is enforced here rather than left to convention.
+ *
+ * Two boundaries matter in this codebase, and both are the kind that erode
+ * quietly if nothing checks them:
+ *
+ *   1. Database access is confined to the data layer. Everything else goes
+ *      through a repository or a service, so the tenant-scoping extension in
+ *      src/lib/db/client.ts cannot be bypassed by a stray import.
+ *
+ *   2. The coding engine stays pure. src/lib/coding holds the reasoning that
+ *      decides which code to recommend; it must not reach the database or the
+ *      framework directly, which is what lets the whole engine be tested with
+ *      no infrastructure at all.
  */
 const config = [
   { ignores: ['.next/**', 'node_modules/**', 'src/generated/**'] },
@@ -20,8 +30,9 @@ const config = [
               // leaves the rule looking enforced while it is not.
               group: ['@prisma/client', '@/generated/prisma', '@/generated/prisma/*'],
               message:
-                'Prisma may only be imported from src/lib/db and src/lib/repositories. ' +
-                'Everything else goes through a repository. See docs/ARCHITECTURE.md §1.3.',
+                'Prisma may only be imported from the data layer (src/lib/db, src/lib/codes, ' +
+                'src/lib/admin, src/lib/auth, src/lib/usage, src/lib/billing). Everything else ' +
+                'goes through a repository or service.',
             },
           ],
         },
@@ -29,36 +40,60 @@ const config = [
     },
   },
   {
-    // The layers allowed to touch the database directly. lib/audit and
-    // lib/auth are included because they hold the append-only writer and the
-    // authentication bootstrap, both of which need the generated enum types.
+    // The layers allowed to touch the database directly.
     files: [
       'src/lib/db/**/*.ts',
-      'src/lib/repositories/**/*.ts',
-      'src/lib/audit/**/*.ts',
+      'src/lib/codes/**/*.ts',
+      'src/lib/admin/**/*.ts',
       'src/lib/auth/**/*.ts',
+      'src/lib/usage/**/*.ts',
+      'src/lib/billing/**/*.ts',
       'prisma/**/*.ts',
       'scripts/**/*.ts',
     ],
     rules: { 'no-restricted-imports': 'off' },
   },
   {
-    // Pure domain modules: no I/O, no framework, no database, no clock.
-    files: ['src/lib/rules/**/*.ts', 'src/lib/confidence/**/*.ts', 'src/lib/domain/**/*.ts'],
+    /**
+     * The coding engine: fixture in, result out.
+     *
+     * queries.ts is the deliberate exception — it is the persistence seam for
+     * engine output and is excluded from this group below.
+     */
+    files: ['src/lib/coding/**/*.ts'],
+    ignores: ['src/lib/coding/queries.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              group: ['@prisma/client', '@/lib/db*', '@/lib/repositories*', 'next/*', 'next'],
+              group: [
+                '@prisma/client',
+                '@/generated/prisma',
+                '@/generated/prisma/*',
+                '@/lib/db',
+                '@/lib/db/*',
+                'next',
+                'next/*',
+              ],
               message:
-                'Domain modules must stay pure — fixture in, object out. See docs/ARCHITECTURE.md §1.3.',
+                'The coding engine must stay pure so it can be tested without infrastructure. ' +
+                'Retrieve through the CodeRepository interface; persist in src/lib/coding/queries.ts.',
             },
           ],
         },
       ],
     },
+  },
+  {
+    files: ['src/lib/coding/queries.ts'],
+    rules: { 'no-restricted-imports': 'off' },
+  },
+  {
+    // Tests exercise every layer by design.
+    files: ['tests/**/*.ts'],
+    rules: { 'no-restricted-imports': 'off' },
   },
 ]
 

@@ -11,6 +11,7 @@ export default defineConfig({
     fileParallelism: false,
     hookTimeout: 60_000,
     testTimeout: 30_000,
+    setupFiles: ['tests/setup.ts'],
   },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
