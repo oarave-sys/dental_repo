@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { execFileSync } from 'node:child_process'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { directDatabaseUrl } from '../src/lib/db/env'
 import { hashPassword } from '../src/lib/auth/password'
 
 /**
@@ -17,7 +18,7 @@ import { hashPassword } from '../src/lib/auth/password'
 const PASSWORD = 'correct-horse-battery-staple'
 
 async function main() {
-  const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL
+  const url = directDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL must be set to seed.')
 
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })

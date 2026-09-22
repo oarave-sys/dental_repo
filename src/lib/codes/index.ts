@@ -1,6 +1,7 @@
 import { MemoryCodeRepository } from './memory-repository'
 import { PrismaCodeRepository } from './prisma-repository'
 import { unsafeCrossTenantClient } from '@/lib/db/client'
+import { databaseUrl } from '@/lib/db/env'
 import type { CodeRepository } from './types'
 
 export * from './types'
@@ -20,7 +21,7 @@ let cached: CodeRepository | null = null
  */
 export function codeRepository(): CodeRepository {
   if (cached) return cached
-  cached = process.env.DATABASE_URL
+  cached = databaseUrl()
     ? new PrismaCodeRepository(unsafeCrossTenantClient())
     : MemoryCodeRepository.demo()
   return cached
@@ -32,5 +33,5 @@ export function setCodeRepository(repository: CodeRepository | null): void {
 }
 
 export function usingDemoFallback(): boolean {
-  return !process.env.DATABASE_URL
+  return !databaseUrl()
 }

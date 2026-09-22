@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { unsafeCrossTenantClient, withTenant } from '@/lib/db/client'
+import { databaseUrl } from '@/lib/db/env'
 
 /**
  * Tenant isolation, exercised against a real PostgreSQL instance.
@@ -14,7 +15,7 @@ import { unsafeCrossTenantClient, withTenant } from '@/lib/db/client'
  * or these tests will pass while proving nothing — so that is asserted first.
  */
 
-const configured = Boolean(process.env.DATABASE_URL)
+const configured = Boolean(databaseUrl())
 const describeIf = configured ? describe : describe.skip
 
 describeIf('row-level security', () => {

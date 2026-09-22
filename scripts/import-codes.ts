@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { directDatabaseUrl } from '../src/lib/db/env'
 import { DatasetSchema, normaliseAttributes } from '../src/lib/codes/dataset-schema'
 
 /**
@@ -36,7 +37,7 @@ async function main() {
   const activate = args.includes('--activate')
   const file = args.find((a) => !a.startsWith('--')) ?? DEMO_PATH
 
-  const url = process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL
+  const url = directDatabaseUrl()
   if (!url) {
     console.error('DATABASE_URL (or DIRECT_DATABASE_URL) must be set to import codes.')
     process.exit(1)

@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Prisma, PrismaClient } from '@/generated/prisma/client'
 import { AppError } from '@/lib/errors'
+import { databaseUrl } from './env'
 
 /**
  * Layer 2 of tenant isolation (docs/SECURITY.md).
@@ -116,7 +117,7 @@ const globalForDb = globalThis as unknown as { __rawDb?: PrismaClient }
 
 function rawClient(): PrismaClient {
   if (!globalForDb.__rawDb) {
-    const url = process.env.DATABASE_URL
+    const url = databaseUrl()
     if (!url) throw new AppError('INTERNAL', 'DATABASE_URL is not configured.')
     globalForDb.__rawDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
   }
