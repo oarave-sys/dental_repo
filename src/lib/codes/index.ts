@@ -1,5 +1,6 @@
 import { MemoryCodeRepository } from './memory-repository'
 import { PrismaCodeRepository } from './prisma-repository'
+import { ResilientCodeRepository } from './resilient-repository'
 import { unsafeCrossTenantClient } from '@/lib/db/client'
 import { databaseUrl } from '@/lib/db/env'
 import type { CodeRepository } from './types'
@@ -7,6 +8,7 @@ import type { CodeRepository } from './types'
 export * from './types'
 export { MemoryCodeRepository } from './memory-repository'
 export { PrismaCodeRepository } from './prisma-repository'
+export { ResilientCodeRepository } from './resilient-repository'
 export * from './attributes'
 
 let cached: CodeRepository | null = null
@@ -14,15 +16,19 @@ let cached: CodeRepository | null = null
 /**
  * Resolves the reference-data source for the running application.
  *
- * With a database configured, codes come from the active dataset in Postgres.
- * Without one, the demo file is loaded directly so the product still runs —
- * which is what makes it possible to see the whole thing working before any
- * infrastructure is provisioned. The engine cannot tell the difference.
+ * With a database configured, codes come from the active dataset in Postgres
+ * — but only if one has actually been imported. An empty database falls back
+ * to the dataset shipped in this repository, so a fresh deploy answers
+ * correctly before anybody runs the import, instead of reporting that every
+ * code is missing.
+ *
+ * Without a database at all, the file is the only source. The engine cannot
+ * tell the three cases apart.
  */
 export function codeRepository(): CodeRepository {
   if (cached) return cached
   cached = databaseUrl()
-    ? new PrismaCodeRepository(unsafeCrossTenantClient())
+    ? new ResilientCodeRepository(new PrismaCodeRepository(unsafeCrossTenantClient()))
     : MemoryCodeRepository.demo()
   return cached
 }
