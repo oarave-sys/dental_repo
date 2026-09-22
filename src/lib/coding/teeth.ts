@@ -93,6 +93,13 @@ export function isValidTooth(raw: string): boolean {
   return parseTooth(raw) !== null
 }
 
+/** A tooth reference together with where in the text it was written. */
+export interface ToothMention {
+  tooth: ToothFacts
+  start: number
+  end: number
+}
+
 /**
  * Extracts tooth references from free text.
  *
@@ -100,14 +107,24 @@ export function isValidTooth(raw: string): boolean {
  * "#3, 4, 5", "teeth #2-5", "#A". A bare number with no marker is deliberately
  * NOT treated as a tooth — "4 BW" means four bitewings, not tooth 4.
  */
-export function extractTeeth(text: string): { teeth: ToothFacts[]; invalid: string[] } {
+export function extractTeeth(text: string): {
+  teeth: ToothFacts[]
+  invalid: string[]
+  /** Where each tooth was written, for tracing a fact back to the source. */
+  mentions: ToothMention[]
+} {
   const found = new Map<string, ToothFacts>()
   const invalid: string[] = []
+  const mentions: ToothMention[] = []
 
-  const add = (token: string) => {
+  const add = (token: string, start?: number, end?: number) => {
     const tooth = parseTooth(token)
-    if (tooth) found.set(tooth.id, tooth)
-    else if (token.trim()) invalid.push(token.trim().replace(/^#/, '').toUpperCase())
+    if (tooth) {
+      found.set(tooth.id, tooth)
+      if (start !== undefined && end !== undefined) mentions.push({ tooth, start, end })
+    } else if (token.trim()) {
+      invalid.push(token.trim().replace(/^#/, '').toUpperCase())
+    }
   }
 
   // Ranges first, so "#2-5" does not read as two separate teeth.
@@ -115,7 +132,10 @@ export function extractTeeth(text: string): { teeth: ToothFacts[]; invalid: stri
     const from = Number(m[1])
     const to = Number(m[2])
     if (from >= 1 && to <= 32 && from < to && to - from <= 15) {
-      for (let n = from; n <= to; n += 1) add(String(n))
+      // The whole range is the evidence for every tooth it covers.
+      const start = m.index ?? 0
+      const end = start + m[0].length
+      for (let n = from; n <= to; n += 1) add(String(n), start, end)
     } else {
       invalid.push(`${m[1]}-${m[2]}`)
     }
@@ -124,20 +144,52 @@ export function extractTeeth(text: string): { teeth: ToothFacts[]; invalid: stri
   // "#30", "#A", and comma/space runs following one marker: "#3, 4 and 5".
   for (const m of text.matchAll(/#\s*([0-9A-Ta-t]{1,2}(?:\s*(?:,|and|&|\/)\s*#?\s*[0-9A-Ta-t]{1,2})*)/g)) {
     const run = m[1]
-    if (!run) continue
-    for (const part of run.split(/\s*(?:,|and|&|\/)\s*/i)) add(part)
+    if (!run || m.index === undefined) continue
+    addRun(run, m.index, m[0], add)
   }
 
   // "tooth 30", "teeth 2 and 3" — the word is the marker instead of a hash.
   for (const m of text.matchAll(/\b(?:tooth|teeth|tth)\s*#?\s*([0-9A-Ta-t]{1,2}(?:\s*(?:,|and|&|\/)\s*#?\s*[0-9A-Ta-t]{1,2})*)/gi)) {
     const run = m[1]
-    if (!run) continue
-    for (const part of run.split(/\s*(?:,|and|&|\/)\s*/i)) add(part)
+    if (!run || m.index === undefined) continue
+    addRun(run, m.index, m[0], add)
   }
 
   return {
     teeth: [...found.values()].sort(compareTeeth),
     invalid: [...new Set(invalid)],
+    mentions,
+  }
+}
+
+/**
+ * Splits a run like "3, 4 and 5" and attributes each tooth to its own offset
+ * within the overall match, so "#3, 4 and 5" highlights three separate teeth
+ * rather than one undifferentiated blob.
+ */
+function addRun(
+  run: string,
+  matchStart: number,
+  matchText: string,
+  add: (token: string, start?: number, end?: number) => void,
+): void {
+  // Offsets are located within the WHOLE match ("#3, 4 and 5"), not within the
+  // captured run ("3, 4 and 5") — the two differ by the marker, and measuring
+  // against the wrong one shifts every span.
+  let cursor = 0
+  for (const part of run.split(/\s*(?:,|and|&|\/)\s*/i)) {
+    if (!part) continue
+    const found = matchText.indexOf(part, cursor)
+    if (found < 0) {
+      add(part)
+      continue
+    }
+    // Pull in an adjacent '#' so "#12" highlights as one token rather than
+    // leaving the marker stranded outside the highlight.
+    const withMarker = found > 0 && matchText[found - 1] === '#' ? found - 1 : found
+    const start = matchStart + withMarker
+    add(part, start, matchStart + found + part.length)
+    cursor = found + part.length
   }
 }
 

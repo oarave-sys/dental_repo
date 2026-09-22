@@ -130,6 +130,59 @@ describeIf('row-level security', () => {
     await expect(db.savedCase.findMany()).resolves.toEqual([])
   })
 
+  /**
+   * The audit log must be append-only in the DATABASE, not merely in the
+   * application. If the app can rewrite its own audit trail, the trail is
+   * worth nothing during the incident it exists for.
+   */
+  it('accepts an audit entry and then refuses to change or remove it', async () => {
+    const created = await withTenant(orgA, async (tx) =>
+      tx.auditEvent.create({
+        data: {
+          organizationId: orgA,
+          action: 'CLINICAL_CONTENT_VIEWED',
+          subjectType: 'CodingQuery',
+          subjectId: 'test-subject',
+        },
+      }),
+    )
+    expect(created.id).toBeTruthy()
+
+    // No UPDATE policy exists, so the row is invisible to an update and the
+    // statement affects nothing.
+    const updated = await withTenant(orgA, (tx) =>
+      tx.auditEvent.updateMany({
+        where: { id: created.id },
+        data: { action: 'SIGNED_OUT' },
+      }),
+    )
+    expect(updated.count).toBe(0)
+
+    const deleted = await withTenant(orgA, (tx) =>
+      tx.auditEvent.deleteMany({ where: { id: created.id } }),
+    )
+    expect(deleted.count).toBe(0)
+
+    // The original survives both attempts, unchanged.
+    const survivor = await withTenant(orgA, (tx) =>
+      tx.auditEvent.findFirst({ where: { id: created.id } }),
+    )
+    expect(survivor?.action).toBe('CLINICAL_CONTENT_VIEWED')
+  })
+
+  it('keeps one practice out of another practice\'s audit log', async () => {
+    await withTenant(orgB, async (tx) => {
+      await tx.auditEvent.create({
+        data: { organizationId: orgB, action: 'SIGNED_IN', subjectType: 'Session' },
+      })
+    })
+
+    const fromA = await withTenant(orgA, (tx) =>
+      tx.auditEvent.findMany({ where: { action: 'SIGNED_IN' } }),
+    )
+    expect(fromA).toHaveLength(0)
+  })
+
   it('keeps reference data readable with no tenant bound', async () => {
     // Procedure codes are global: the admin area and the importer both need
     // them without an organization in scope.

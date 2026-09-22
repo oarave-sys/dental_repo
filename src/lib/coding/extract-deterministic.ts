@@ -8,6 +8,7 @@ import {
   type ProcedureKindDef,
 } from './vocabulary'
 import { emptyIntent, type AgeBand, type ExtractedFacts, type ProcedureIntent } from './facts'
+import { span, type SourceSpan } from './evidence'
 
 /**
  * Rule-based extraction of clinical facts from free text.
@@ -243,6 +244,29 @@ function allMatches<T>(text: string, table: Array<[RegExp, T]>): T[] {
   return out
 }
 
+/** Like allMatches, but also reports where each value was found. */
+function allMatchesWithSpans<T>(
+  text: string,
+  table: Array<[RegExp, T]>,
+  offset = 0,
+): { values: T[]; spans: SourceSpan[] } {
+  const values: T[] = []
+  const spans: SourceSpan[] = []
+  for (const [pattern, value] of table) {
+    const re = new RegExp(pattern.source, pattern.flags.includes('i') ? 'gi' : 'g')
+    for (const m of text.matchAll(re)) {
+      if (m.index === undefined) continue
+      if (!values.includes(value)) values.push(value)
+      spans.push(span(text, m.index, m.index + m[0].length))
+    }
+  }
+  // Offsets are relative to `text`; shift them into the original input.
+  return {
+    values,
+    spans: offset === 0 ? spans : spans.map((sp) => ({ ...sp, start: sp.start + offset, end: sp.end + offset })),
+  }
+}
+
 /**
  * True when a phrase is negated in the text.
  *
@@ -312,12 +336,38 @@ function crownMaterial(materials: string[]): string | null {
  * write runs like "#3 MOD composite, #19 DO amalgam" and both teeth must not
  * end up on both procedures.
  */
-function segment(text: string): string[] {
-  const parts = text
-    .split(/(?:[.;\n]|,\s*(?=#)|\band\b(?=\s+#))/gi)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  return parts.length > 0 ? parts : [text]
+export interface TextSegment {
+  text: string
+  /** Absolute offset of this segment within the original input. */
+  offset: number
+}
+
+/**
+ * Splits input so facts attach to the right procedure, keeping each piece's
+ * absolute offset. The offsets are what let a highlighted span point at the
+ * original text rather than at a fragment of it.
+ */
+function segment(text: string): TextSegment[] {
+  const separator = /(?:[.;\n]|,\s*(?=#)|\band\b(?=\s+#))/gi
+  const out: TextSegment[] = []
+  let cursor = 0
+
+  for (const m of text.matchAll(separator)) {
+    if (m.index === undefined) continue
+    pushSegment(out, text, cursor, m.index)
+    cursor = m.index + m[0].length
+  }
+  pushSegment(out, text, cursor, text.length)
+
+  return out.length > 0 ? out : [{ text, offset: 0 }]
+}
+
+/** Trims a slice and records where the trimmed text actually starts. */
+function pushSegment(out: TextSegment[], source: string, from: number, to: number): void {
+  const raw = source.slice(from, to)
+  const leading = raw.length - raw.trimStart().length
+  const trimmed = raw.trim()
+  if (trimmed) out.push({ text: trimmed, offset: from + leading })
 }
 
 export interface DeterministicOptions {
@@ -343,16 +393,33 @@ export function extractDeterministic(
   // onto another. Falls back to the whole text when a segment carries none.
   interface SegmentFacts {
     text: string
+    offset: number
     teeth: ToothFacts[]
+    toothSpans: SourceSpan[]
     surfaces: Surface[]
+    surfaceSpans: SourceSpan[]
     materials: string[]
+    materialSpans: SourceSpan[]
   }
-  const segmentFacts: SegmentFacts[] = segments.map((s) => ({
-    text: s,
-    teeth: extractTeeth(s).teeth,
-    surfaces: extractSurfaces(s).surfaces,
-    materials: allMatches(s, MATERIALS),
-  }))
+
+  const shift = (spans: Array<{ start: number; end: number }>, offset: number, source: string) =>
+    spans.map((sp) => span(source, sp.start + offset, sp.end + offset))
+
+  const segmentFacts: SegmentFacts[] = segments.map((seg) => {
+    const teeth = extractTeeth(seg.text)
+    const surfaces = extractSurfaces(seg.text)
+    const materials = allMatchesWithSpans(seg.text, MATERIALS, seg.offset)
+    return {
+      text: seg.text,
+      offset: seg.offset,
+      teeth: teeth.teeth,
+      toothSpans: shift(teeth.mentions, seg.offset, text),
+      surfaces: surfaces.surfaces,
+      surfaceSpans: shift(surfaces.mentions, seg.offset, text),
+      materials: materials.values,
+      materialSpans: materials.spans,
+    }
+  })
 
   const kindMatches = matchProcedureKinds(text)
   const intents: ProcedureIntent[] = []
@@ -368,16 +435,35 @@ export function extractDeterministic(
       segmentFacts[0]
 
     intent.sourceText = owning?.text ?? text
+    intent.evidence.procedure = [span(text, match.index, match.index + match.matchLength)]
 
-    const scoped = owning ?? { text, teeth: globalTeeth.teeth, surfaces: [], materials: [] }
+    const scoped =
+      owning ?? {
+        text,
+        offset: 0,
+        teeth: globalTeeth.teeth,
+        toothSpans: shift(globalTeeth.mentions, 0, text),
+        surfaces: [],
+        surfaceSpans: [],
+        materials: [],
+        materialSpans: [],
+      }
 
     // Teeth: prefer the owning segment, fall back to the whole input when the
     // segment names none and the input names exactly one.
     let teeth = scoped.teeth
-    if (teeth.length === 0 && globalTeeth.teeth.length === 1) teeth = globalTeeth.teeth
-    if (teeth.length === 0 && kindMatches.length === 1) teeth = globalTeeth.teeth
+    let toothSpans = scoped.toothSpans
+    if (teeth.length === 0 && globalTeeth.teeth.length === 1) {
+      teeth = globalTeeth.teeth
+      toothSpans = shift(globalTeeth.mentions, 0, text)
+    }
+    if (teeth.length === 0 && kindMatches.length === 1) {
+      teeth = globalTeeth.teeth
+      toothSpans = shift(globalTeeth.mentions, 0, text)
+    }
 
     intent.toothIds = teeth.map((t) => t.id)
+    if (toothSpans.length > 0) intent.evidence.tooth_numbers = toothSpans
 
     if (teeth.length > 0) {
       const regions = new Set(teeth.map((t) => t.region))
@@ -397,11 +483,15 @@ export function extractDeterministic(
       match.def.key === 'inlay_onlay'
     if (surfaceRelevant) {
       let surfaces = scoped.surfaces
+      let surfaceSpans = scoped.surfaceSpans
       if (surfaces.length === 0 && kindMatches.length === 1) {
-        surfaces = extractSurfaces(text).surfaces
+        const whole = extractSurfaces(text)
+        surfaces = whole.surfaces
+        surfaceSpans = shift(whole.mentions, 0, text)
       }
       intent.surfaces = surfaces
       intent.surfaceCount = surfaces.length > 0 ? surfaces.length : null
+      if (surfaceSpans.length > 0) intent.evidence.surfaces = surfaceSpans
 
       for (const tooth of teeth) {
         observations.push(...surfaceToothConflicts(surfaces, tooth))
@@ -409,18 +499,40 @@ export function extractDeterministic(
     }
 
     let materials = scoped.materials
-    if (materials.length === 0 && kindMatches.length === 1) materials = allMatches(text, MATERIALS)
+    let materialSpans = scoped.materialSpans
+    if (materials.length === 0 && kindMatches.length === 1) {
+      const whole = allMatchesWithSpans(text, MATERIALS)
+      materials = whole.values
+      materialSpans = whole.spans
+    }
     intent.materials = materials
+    if (materialSpans.length > 0) intent.evidence.material = materialSpans
 
-    const reasons = allMatches(scoped.text, REASONS)
-    intent.clinicalReasons = reasons.length > 0 ? reasons : allMatches(text, REASONS)
+    const scopedReasons = allMatchesWithSpans(scoped.text, REASONS, scoped.offset)
+    const reasons =
+      scopedReasons.values.length > 0 ? scopedReasons : allMatchesWithSpans(text, REASONS)
+    intent.clinicalReasons = reasons.values
+    if (reasons.spans.length > 0) intent.evidence.clinical_reasons = reasons.spans
 
     // Replacement vs new. Only set when the text says so.
     const scope = `${scoped.text} ${text}`
     if (REPLACEMENT_CUES.some((c) => c.test(scope))) intent.restorationIntent = 'REPLACEMENT'
     else if (NEW_CUES.some((c) => c.test(scope))) intent.restorationIntent = 'NEW'
 
+    if (intent.restorationIntent) {
+      const cues = intent.restorationIntent === 'REPLACEMENT' ? REPLACEMENT_CUES : NEW_CUES
+      const cueSpans = allMatchesWithSpans(
+        text,
+        cues.map((c) => [c, true] as [RegExp, boolean]),
+      ).spans
+      if (cueSpans.length > 0) intent.evidence.restoration_intent = cueSpans
+    }
+
     intent.existingRestoration = firstMatch(scope, EXISTING_RESTORATION)
+    if (intent.existingRestoration) {
+      const existingSpans = allMatchesWithSpans(text, EXISTING_RESTORATION).spans
+      if (existingSpans.length > 0) intent.evidence.existing_restoration = existingSpans
+    }
 
     if (intent.category === 'DIAGNOSTIC') {
       intent.imageCount = extractImageCount(scoped.text) ?? extractImageCount(text)

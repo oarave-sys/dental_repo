@@ -6,6 +6,8 @@ import { requirePermission, type RoleKey } from '@/lib/authz'
 import { changeMemberRole, inviteMember, removeMember } from '@/lib/auth/accounts'
 import { withTenant } from '@/lib/db/client'
 import { recordUsage } from '@/lib/usage'
+import { recordAudit } from '@/lib/audit'
+import { requestIp, requestUserAgent } from '@/lib/auth/current'
 import { isAppError } from '@/lib/errors'
 
 export interface SettingsState {
@@ -38,6 +40,17 @@ export async function updatePracticeAction(
         data: { name, retainQueryText },
       })
     })
+    await recordAudit({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      action: 'SETTINGS_CHANGED',
+      subjectType: 'Organization',
+      subjectId: actor.organizationId,
+      ip: await requestIp(),
+      userAgent: await requestUserAgent(),
+      metadata: { retainQueryText },
+    })
+
     revalidatePath('/settings')
     return { success: 'Practice settings saved.' }
   } catch (error) {
@@ -69,6 +82,15 @@ export async function inviteMemberAction(
       metadata: { role },
     })
 
+    await recordAudit({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      action: 'MEMBER_INVITED',
+      subjectType: 'Invitation',
+      ip: await requestIp(),
+      metadata: { role },
+    })
+
     revalidatePath('/settings')
 
     // Email delivery is not wired up yet, so the link is returned to the
@@ -96,6 +118,16 @@ export async function changeRoleAction(
       membershipId: String(formData.get('membershipId') ?? ''),
       role: String(formData.get('role') ?? 'MEMBER') as RoleKey,
     })
+    await recordAudit({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      action: 'MEMBER_ROLE_CHANGED',
+      subjectType: 'Membership',
+      subjectId: String(formData.get('membershipId') ?? ''),
+      ip: await requestIp(),
+      metadata: { role: String(formData.get('role') ?? '') },
+    })
+
     revalidatePath('/settings')
     return { success: 'Role updated. That person will need to sign in again.' }
   } catch (error) {
@@ -115,6 +147,15 @@ export async function removeMemberAction(
       organizationId: actor.organizationId,
       membershipId: String(formData.get('membershipId') ?? ''),
     })
+    await recordAudit({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      action: 'MEMBER_REMOVED',
+      subjectType: 'Membership',
+      subjectId: String(formData.get('membershipId') ?? ''),
+      ip: await requestIp(),
+    })
+
     revalidatePath('/settings')
     return { success: 'That person no longer has access.' }
   } catch (error) {

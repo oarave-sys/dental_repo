@@ -10,8 +10,15 @@ import {
   signUp,
 } from '@/lib/auth/accounts'
 import { requestIp, requestUserAgent } from '@/lib/auth/current'
-import { ABSOLUTE_TIMEOUT_MS, SESSION_COOKIE, issueSession, revokeSession } from '@/lib/auth/session'
+import {
+  ABSOLUTE_TIMEOUT_MS,
+  SESSION_COOKIE,
+  issueSession,
+  resolveSession,
+  revokeSession,
+} from '@/lib/auth/session'
 import { isAppError } from '@/lib/errors'
+import { recordAudit } from '@/lib/audit'
 import { logger } from '@/lib/logging/logger'
 
 /**
@@ -82,6 +89,14 @@ export async function signInAction(_prev: FormState, formData: FormData): Promis
       return { error: 'That email address and password do not match an account.' }
     }
     await setSessionCookie(result.userId, result.organizationId)
+    await recordAudit({
+      organizationId: result.organizationId,
+      userId: result.userId,
+      action: 'SIGNED_IN',
+      subjectType: 'Session',
+      ip: await requestIp(),
+      userAgent: await requestUserAgent(),
+    })
   } catch (error) {
     return toState(error, 'We could not sign you in. Try again.')
   }
@@ -91,7 +106,22 @@ export async function signInAction(_prev: FormState, formData: FormData): Promis
 export async function signOutAction(): Promise<void> {
   const jar = await cookies()
   const token = jar.get(SESSION_COOKIE)?.value
-  if (token) await revokeSession(token)
+
+  if (token) {
+    // Resolve before revoking — afterwards there is no actor to attribute to.
+    const resolved = await resolveSession(token).catch(() => null)
+    if (resolved) {
+      await recordAudit({
+        organizationId: resolved.actor.organizationId,
+        userId: resolved.actor.userId,
+        action: 'SIGNED_OUT',
+        subjectType: 'Session',
+        subjectId: resolved.sessionId,
+      })
+    }
+    await revokeSession(token)
+  }
+
   jar.delete(SESSION_COOKIE)
   redirect('/sign-in')
 }

@@ -1,6 +1,7 @@
 import { withTenant } from '@/lib/db/client'
 import { notFound } from '@/lib/errors'
 import { recordAiRequest, recordUsage, type Tool } from '@/lib/usage'
+import { recordAudit } from '@/lib/audit'
 import type { ExtractionUsage } from './ai'
 import type { CodingResult } from './result'
 
@@ -115,6 +116,15 @@ export async function saveQuery(input: SaveQueryInput): Promise<string> {
     })
   }
 
+  await recordAudit({
+    organizationId: input.organizationId,
+    userId: input.userId,
+    action: 'CLINICAL_CONTENT_CREATED',
+    subjectType: 'CodingQuery',
+    subjectId: queryId,
+    metadata: { tool: input.tool, retained: input.result.evidence.source.length > 0 },
+  })
+
   return queryId
 }
 
@@ -218,7 +228,20 @@ export async function recentQueries(
   })
 }
 
-export async function loadQuery(organizationId: string, queryId: string) {
+export async function loadQuery(
+  organizationId: string,
+  queryId: string,
+  viewer?: { userId: string },
+) {
+  if (viewer) {
+    await recordAudit({
+      organizationId,
+      userId: viewer.userId,
+      action: 'CLINICAL_CONTENT_VIEWED',
+      subjectType: 'CodingQuery',
+      subjectId: queryId,
+    })
+  }
   return withTenant(organizationId, async (db) => {
     const query = await db.codingQuery.findUnique({
       where: { id: queryId },
@@ -265,6 +288,15 @@ export async function saveCase(params: {
     metadata: { codeCount: params.codes.length },
   })
 
+  await recordAudit({
+    organizationId: params.organizationId,
+    userId: params.userId,
+    action: 'CASE_SAVED',
+    subjectType: 'SavedCase',
+    subjectId: id,
+    metadata: { codeCount: params.codes.length },
+  })
+
   return id
 }
 
@@ -293,5 +325,13 @@ export async function deleteSavedCase(params: {
     organizationId: params.organizationId,
     userId: params.userId,
     eventType: 'case.deleted',
+  })
+
+  await recordAudit({
+    organizationId: params.organizationId,
+    userId: params.userId,
+    action: 'CASE_DELETED',
+    subjectType: 'SavedCase',
+    subjectId: params.caseId,
   })
 }

@@ -1,6 +1,13 @@
-import type { CodingResult, DocumentationItem, ProcedureResult } from '@/lib/coding/result'
+import type {
+  CandidateChoice,
+  CodingResult,
+  DocumentationItem,
+  ProcedureResult,
+} from '@/lib/coding/result'
 import { CATEGORY_LABELS } from '@/lib/coding/vocabulary'
+import { factLabel } from '@/lib/codes/attributes'
 import { Badge, Card, ConfidenceBadge, DatasetNotice, Disclaimer, SectionTitle } from './ui'
+import { EvidencePanel } from './evidence'
 
 /**
  * Renders an analysis.
@@ -24,7 +31,16 @@ export function CodingResultView({
     <div className="space-y-5">
       <DatasetNotice dataset={result.dataset} />
 
-      {result.status === 'NEEDS_INPUT' && children}
+      {result.status === 'NEEDS_INPUT' && (
+        <>
+          {result.procedures
+            .filter((p) => p.choice !== null)
+            .map((p) => (
+              <CandidateTable key={p.intentId} procedure={p} choice={p.choice!} />
+            ))}
+          {children}
+        </>
+      )}
 
       {hasRecommendation && (
         <div className="space-y-4">
@@ -44,6 +60,8 @@ export function CodingResultView({
           </p>
         </Card>
       )}
+
+      <EvidencePanel result={result} />
 
       {result.warnings.length > 0 && <WarningsPanel result={result} />}
 
@@ -266,5 +284,67 @@ function ItemList({
         ))}
       </ul>
     </div>
+  )
+}
+
+
+/**
+ * The codes still in play, side by side.
+ *
+ * Shown before the question rather than instead of it. Someone who already
+ * knows the distinction can read the answer straight off the table; someone
+ * who does not still gets told exactly what to supply.
+ */
+function CandidateTable({
+  procedure,
+  choice,
+}: {
+  procedure: ProcedureResult
+  choice: CandidateChoice
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-rule bg-surface-2/60 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-ink-2">{procedure.procedureSummary}</p>
+          <Badge tone="medium">{choice.candidates.length} possible</Badge>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-rule text-left text-xs uppercase tracking-wider text-ink-3">
+              <th className="px-5 py-2.5 font-semibold">Code</th>
+              <th className="px-5 py-2.5 font-semibold">Covers</th>
+              {choice.distinguishingFactKeys.map((key) => (
+                <th key={key} className="px-5 py-2.5 font-semibold">
+                  {factLabel(key)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule">
+            {choice.candidates.map((candidate) => (
+              <tr key={candidate.code}>
+                <td className="px-5 py-2.5">
+                  <span className="code-number text-ink">{candidate.code}</span>
+                </td>
+                <td className="px-5 py-2.5 text-ink-2">{candidate.shortLabel}</td>
+                {choice.distinguishingFactKeys.map((key) => (
+                  <td key={key} className="px-5 py-2.5 font-medium text-ink">
+                    {candidate.distinguishingValues[key] ?? '\u2014'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="border-t border-rule px-5 py-3">
+        <p className="text-[13px] leading-relaxed text-ink-2">{choice.specificityNote}</p>
+      </div>
+    </Card>
   )
 }

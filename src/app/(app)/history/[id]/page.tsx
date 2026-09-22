@@ -19,7 +19,11 @@ export default async function QueryDetailPage({
   const { id } = await params
   const actor = await requireActor()
 
-  const query = await loadQuery(actor.organizationId, id).catch(() => null)
+  // Opening someone's clinical description is exactly what an audit log exists
+  // to record, so the viewer is passed in.
+  const query = await loadQuery(actor.organizationId, id, { userId: actor.userId }).catch(
+    () => null,
+  )
   if (!query) notFound()
 
   // A member can reopen their own work; seeing a colleague's needs the

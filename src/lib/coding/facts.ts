@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { EvidenceOrigin, SourceSpan } from './evidence'
 import type { Surface } from './surfaces'
 import type { Arch, Dentition, Quadrant, ToothRegion } from './teeth'
 import type { ProcedureCategory } from './vocabulary'
@@ -57,6 +58,22 @@ export interface ProcedureIntent {
 
   /** The span of the user's text this intent came from, for explanation. */
   sourceText: string
+
+  /**
+   * Where each fact was read from, keyed by fact key.
+   *
+   * This is what lets the UI show a coder the exact words that produced a
+   * recommendation. Absent or empty means the fact was derived rather than
+   * read, which the UI states instead of highlighting nothing.
+   */
+  evidence: Record<string, SourceSpan[]>
+
+  /**
+   * Fact keys whose evidence came from a quote the language model returned
+   * rather than a rule match. Shown differently, because a located quote is
+   * weaker evidence than an exact match.
+   */
+  quotedFacts: string[]
 }
 
 export interface ExtractedFacts {
@@ -91,6 +108,8 @@ export function emptyIntent(id: string): ProcedureIntent {
     ageBand: null,
     attributes: {},
     sourceText: '',
+    evidence: {},
+    quotedFacts: [],
   }
 }
 
@@ -139,4 +158,9 @@ export interface DisplayFact {
   value: string
   /** Where the fact came from, so a user can tell stated from derived. */
   source: 'stated' | 'derived'
+  /** Fact key, used to tie a row to its highlight in the source text. */
+  factKey: string
+  /** The spans of the input that produced it. Empty for derived facts. */
+  spans: SourceSpan[]
+  origin: EvidenceOrigin
 }

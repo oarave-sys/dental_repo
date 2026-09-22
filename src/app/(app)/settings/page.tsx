@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { requireActor } from '@/lib/auth/current'
 import { ROLE_LABELS, can, type RoleKey } from '@/lib/authz'
@@ -139,6 +140,19 @@ export default async function SettingsPage() {
               </p>
             )}
           </Card>
+
+          {can(actor, 'org:manage') && (
+            <Card className="p-5">
+              <SectionTitle>Audit log</SectionTitle>
+              <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+                Who opened which search, and who changed the team. Entries cannot be edited or
+                deleted.
+              </p>
+              <Link href="/settings/audit" className="btn-secondary btn-sm mt-3">
+                View audit log
+              </Link>
+            </Card>
+          )}
 
           <Card className="p-5">
             <SectionTitle>Privacy</SectionTitle>

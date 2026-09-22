@@ -52,6 +52,14 @@ const BOOTSTRAP = new Set([
   'password_reset_tokens',
 ])
 
+/**
+ * Append-only tables. Tenant-scoped for reading, but the policy grants only
+ * INSERT and SELECT — there is deliberately no UPDATE or DELETE policy, so
+ * PostgreSQL refuses both even for the application role. An audit log the
+ * application can rewrite is not an audit log.
+ */
+const APPEND_ONLY = new Set(['audit_events'])
+
 const REFERENCE = new Set([
   'code_datasets',
   'procedure_codes',
@@ -90,6 +98,18 @@ for (const model of models) {
     // Deliberately ahead of the tenant check: see the note on BOOTSTRAP above.
     out.push(`-- BOOTSTRAP: identity, reached by secret token before a tenant is known.`)
     out.push(`CREATE POLICY "${t}_bootstrap" ON "${t}" USING (true) WITH CHECK (true);`)
+  } else if (APPEND_ONLY.has(t)) {
+    out.push(`ALTER TABLE "${t}" FORCE ROW LEVEL SECURITY;`)
+    out.push(`-- APPEND-ONLY: insert and read within the tenant; no UPDATE or`)
+    out.push(`-- DELETE policy exists, so PostgreSQL refuses both outright.`)
+    out.push(
+      `CREATE POLICY "${t}_insert" ON "${t}" FOR INSERT WITH CHECK (` +
+        `"organizationId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid);`,
+    )
+    out.push(
+      `CREATE POLICY "${t}_select" ON "${t}" FOR SELECT USING (` +
+        `"organizationId" = NULLIF(current_setting('app.current_org_id', true), '')::uuid);`,
+    )
   } else if (model.tenantScoped) {
     out.push(`ALTER TABLE "${t}" FORCE ROW LEVEL SECURITY;`)
     out.push(`-- TENANT: reachable only within the bound organization.`)

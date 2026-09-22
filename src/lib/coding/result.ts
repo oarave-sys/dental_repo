@@ -1,4 +1,5 @@
 import type { DisplayFact } from './facts'
+import type { HighlightSegment } from './evidence'
 import type { ProcedureCategory } from './vocabulary'
 
 /**
@@ -33,6 +34,33 @@ export interface AlternativeCode {
   /** What would have to be true for this one to apply instead. */
   distinction: string
   intentId: string
+}
+
+/**
+ * A candidate still in play, alongside the values that separate it from its
+ * rivals.
+ *
+ * Shown as a comparison rather than only as a question, so a coder who already
+ * knows the answer can see it directly instead of being interrogated. The
+ * question stays too — someone who does not know what distinguishes the codes
+ * needs to be told exactly what to supply.
+ */
+export interface CandidateComparison {
+  code: string
+  shortLabel: string
+  /** Values of the discriminating attributes, keyed by fact key. */
+  distinguishingValues: Record<string, string>
+  /** Whether this candidate currently scores highest. */
+  leading: boolean
+}
+
+export interface CandidateChoice {
+  intentId: string
+  /** Fact keys, in display order, that separate the candidates. */
+  distinguishingFactKeys: string[]
+  candidates: CandidateComparison[]
+  /** e.g. "Specificity depends on the surfaces restored. 4 candidates shown." */
+  specificityNote: string
 }
 
 export interface FollowUpQuestion {
@@ -84,6 +112,8 @@ export interface ProcedureResult {
   confidence: Confidence
   /** True when the engine is holding back pending an answer. */
   awaitingAnswer: boolean
+  /** Populated when several codes remain possible. */
+  choice: CandidateChoice | null
 }
 
 export interface CodingResult {
@@ -107,6 +137,19 @@ export interface CodingResult {
   dataset: { key: string; kind: 'DEMO' | 'LICENSED'; name: string }
   /** True when the language model contributed to extraction. */
   aiAssisted: boolean
+
+  /**
+   * The user's own text, split into runs and attributed to the facts each one
+   * produced. Lets the UI show exactly which words drove the recommendation,
+   * so nothing here has to be taken on trust.
+   *
+   * Empty when the practice has input retention turned off, since there is
+   * then no text to show back.
+   */
+  evidence: {
+    source: string
+    segments: HighlightSegment[]
+  }
 }
 
 export const DISCLAIMER =

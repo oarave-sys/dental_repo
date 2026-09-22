@@ -89,6 +89,13 @@ an integration test asserts this and fails if it is not.
 Supabase works: use the pooler URL for `DATABASE_URL` and the direct URL for
 `DIRECT_DATABASE_URL`.
 
+### Deploying
+
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). The repository already carries
+the four things a Vercel deploy needs — `prisma generate` in the build, native
+modules externalised, and documented pooled/direct database URLs — so importing
+the repo and setting environment variables is the whole job.
+
 ### Verifying it
 
 ```bash
@@ -247,6 +254,9 @@ See *Before handling PHI* below.
 ### What works
 
 - All three tools, end to end, including the clarification loop.
+- Every fact traced back to the words in your note that produced it.
+- Remaining candidates shown side by side with what separates them.
+- An append-only audit log, immutable at the database level.
 - Sign-up with practice creation, sign-in, sign-out, password reset,
   invitations, Owner/Admin/Member roles.
 - History, saved cases, settings, internal admin.
@@ -283,8 +293,9 @@ Everything above, plus:
 1. A signed BAA with every vendor in the path — hosting, database, and
    Anthropic.
 2. Encryption at rest with managed keys, and TLS everywhere.
-3. An append-only audit log of access to clinical content. The schema has room
-   for it; it is not built.
+3. Audit log hardening. The log exists and is immutable at the database level,
+   but it currently fails open on a write error and has unbounded retention.
+   An auditable system generally has to fail closed.
 4. Tighter session timeouts and mandatory MFA. Sessions are deliberately long
    now because the product holds no PHI.
 5. A documented retention and deletion policy, with automated enforcement.

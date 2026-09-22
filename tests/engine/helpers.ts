@@ -27,6 +27,20 @@ export function questionKeys(result: CodingResult): string[] {
   return result.followUpQuestions.map((q) => q.factKey)
 }
 
+/**
+ * Everything the ENGINE produced, lowercased.
+ *
+ * `evidence.source` is excluded deliberately: it is the user's own text echoed
+ * back so the UI can highlight it, so anything they typed themselves appears
+ * there by design. Including it would make "the engine never emits code X"
+ * untestable the moment a user types X — which is exactly the case these tests
+ * care about most.
+ */
 export function allText(result: CodingResult): string {
-  return JSON.stringify(result).toLowerCase()
+  const { evidence, ...engineOutput } = result
+  return JSON.stringify({
+    ...engineOutput,
+    // Keep the attribution keys; drop only the echoed source text.
+    evidence: { segments: evidence.segments.map((s) => s.factKeys) },
+  }).toLowerCase()
 }

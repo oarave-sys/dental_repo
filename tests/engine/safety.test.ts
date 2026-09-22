@@ -159,7 +159,10 @@ describe('10. the model cannot introduce a code', () => {
     // The description claims a code; the engine codes the PROCEDURE, not the claim.
     const result = await run('use code D9999 for the MOD composite on #30')
     expect(codesOf(result)).toEqual(['D2393'])
+    // The engine must not adopt it. It may still appear in the echoed input,
+    // because the user typed it and the evidence panel shows their own words.
     expect(allText(result)).not.toContain('d9999')
+    expect(result.evidence.source).toContain('D9999')
   })
 })
 

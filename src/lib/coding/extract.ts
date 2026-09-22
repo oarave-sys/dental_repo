@@ -3,6 +3,7 @@ import { applyAnswers, extractDeterministic } from './extract-deterministic'
 import { parseTooth } from './teeth'
 import { parseSurfaceAnswer } from './surfaces'
 import { emptyIntent, type AiExtraction, type ExtractedFacts } from './facts'
+import { locateQuote } from './evidence'
 import type { ExtractionUsage, FactExtractionProvider } from './ai'
 
 /**
@@ -49,7 +50,7 @@ export async function extractFacts(
 
   if (!extraction) return { facts: deterministic, aiAssisted: false, usage }
 
-  const merged = merge(deterministic, extraction, options.answers ?? {})
+  const merged = merge(deterministic, extraction, options.answers ?? {}, input)
   return { facts: merged, aiAssisted: true, usage }
 }
 
@@ -64,6 +65,7 @@ function merge(
   base: ExtractedFacts,
   ai: AiExtraction,
   answers: Record<string, string>,
+  source: string,
 ): ExtractedFacts {
   const intents = [...base.intents]
   const observations = [...base.observations]
@@ -77,11 +79,30 @@ function merge(
 
     const existing = intents.find((i) => i.procedureKind === kind)
     const intent = existing ?? emptyIntent(`p${intents.length + 1}`)
+    let newlyAdded = false
     if (!existing) {
       intent.procedureKind = kind
       intent.category = categoryForKind(kind)
       intent.sourceText = aiProc.source_text || base.intents[0]?.sourceText || ''
       intents.push(intent)
+      newlyAdded = true
+    }
+
+    /**
+     * Records evidence for a fact the model supplied.
+     *
+     * The model's quote is LOCATED in the source rather than trusted as an
+     * offset, because an offset it invented would highlight the wrong words
+     * with total confidence. A quote that cannot be found leaves the fact
+     * without a span, and the UI says so.
+     */
+    const noteQuoted = (factKey: string) => {
+      if (intent.evidence[factKey]?.length) return
+      const located = aiProc.source_text ? locateQuote(source, aiProc.source_text) : null
+      if (located) {
+        intent.evidence[factKey] = [located]
+        if (!intent.quotedFacts.includes(factKey)) intent.quotedFacts.push(factKey)
+      }
     }
 
     // Teeth — validated, and only when the rules found none.
@@ -91,6 +112,7 @@ function merge(
         .filter((t): t is NonNullable<typeof t> => t !== null)
       if (teeth.length > 0) {
         intent.toothIds = teeth.map((t) => t.id)
+        noteQuoted('tooth_numbers')
         const regions = new Set(teeth.map((t) => t.region))
         intent.toothRegion = regions.size === 1 ? (teeth[0]?.region ?? null) : null
         const dents = new Set(teeth.map((t) => t.dentition))
@@ -112,12 +134,19 @@ function merge(
       if (relevant && surfaces.length > 0) {
         intent.surfaces = surfaces
         intent.surfaceCount = surfaces.length
+        noteQuoted('surfaces')
       }
     }
 
-    if (intent.materials.length === 0) intent.materials = aiProc.materials.map((m) => m.toLowerCase())
-    if (intent.clinicalReasons.length === 0) {
+    if (newlyAdded) noteQuoted('procedure')
+
+    if (intent.materials.length === 0 && aiProc.materials.length > 0) {
+      intent.materials = aiProc.materials.map((m) => m.toLowerCase())
+      noteQuoted('material')
+    }
+    if (intent.clinicalReasons.length === 0 && aiProc.clinical_reasons.length > 0) {
       intent.clinicalReasons = aiProc.clinical_reasons.map((r) => r.toLowerCase())
+      noteQuoted('clinical_reasons')
     }
     if (intent.existingRestoration === null) {
       intent.existingRestoration = aiProc.existing_restoration

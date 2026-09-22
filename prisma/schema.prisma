@@ -55,6 +55,7 @@ model Organization {
   savedCases    SavedCase[]
   usageEvents   UsageEvent[]
   aiRequests    AiRequest[]
+  auditEvents   AuditEvent[]
   subscription  Subscription?
 
   @@map("organizations")
@@ -86,6 +87,7 @@ model User {
   codingQueries  CodingQuery[]
   savedCases     SavedCase[]
   usageEvents    UsageEvent[]
+  auditEvents    AuditEvent[]
 
   @@map("users")
 }
@@ -536,6 +538,61 @@ model AiRequest {
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("ai_requests")
+}
+
+/// What an audit entry describes. Kept coarse: the point is an accurate,
+/// queryable record, not a second copy of the application's vocabulary.
+enum AuditAction {
+  CLINICAL_CONTENT_VIEWED
+  CLINICAL_CONTENT_CREATED
+  CLINICAL_CONTENT_DELETED
+  CASE_SAVED
+  CASE_DELETED
+  MEMBER_INVITED
+  MEMBER_ROLE_CHANGED
+  MEMBER_REMOVED
+  SETTINGS_CHANGED
+  SIGNED_IN
+  SIGNED_OUT
+  ADMIN_METRICS_VIEWED
+}
+
+/// Append-only record of access to clinical content and of account changes.
+///
+/// Immutability is enforced by the DATABASE, not by convention: the row-level
+/// security policy grants INSERT and SELECT and grants no UPDATE or DELETE, so
+/// even the application role cannot rewrite history. An audit log the
+/// application can edit is not an audit log.
+///
+/// Holds no clinical text. `subjectId` points at the row that was touched, so
+/// an investigator can follow the reference; the content itself stays where it
+/// already lives, under its own access control.
+model AuditEvent {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  /// Null when the actor is no longer a user, so history survives deletion.
+  userId         String? @db.Uuid
+
+  action     AuditAction
+  /// e.g. "CodingQuery", "SavedCase", "Membership".
+  subjectType String
+  subjectId   String?
+
+  /// Hashed, never the address itself.
+  ipHash    String?
+  userAgent String?
+
+  /// Non-clinical metadata only: enum values, counts, role names.
+  metadata Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, action, createdAt(sort: Desc)])
+  @@map("audit_events")
 }
 
 enum SubscriptionStatus {

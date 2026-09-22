@@ -4,12 +4,16 @@ import { extractionProvider, type ExtractionUsage } from './ai'
 import { extractFacts } from './extract'
 import { genericQuestion, questionOptions, reviewDocumentation } from './documentation'
 import { rankCandidates, type CandidateScore } from './rank'
+import { DISCRIMINATOR_TO_FACT, factLabel } from '@/lib/codes/attributes'
 import { procedureLabel, type ProcedureCategory } from './vocabulary'
 import { describeSurfaces, formatSurfaces } from './surfaces'
 import { formatTeeth } from './teeth'
+import { buildHighlights, reconcile } from './evidence'
 import type { ExtractedFacts, DisplayFact, ProcedureIntent } from './facts'
 import type {
   AlternativeCode,
+  CandidateChoice,
+  CandidateComparison,
   CodingResult,
   CodingWarning,
   Confidence,
@@ -87,9 +91,10 @@ export async function analyse(input: string, options: AnalyseOptions = {}): Prom
         category: intent.category,
         recommended: [],
         alternatives: [],
-        factsUsed: displayFacts(intent),
+        factsUsed: displayFacts(intent, input),
         confidence: 'LOW',
         awaitingAnswer: false,
+        choice: null,
       })
       warnings.push({
         severity: 'REVIEW',
@@ -145,9 +150,10 @@ export async function analyse(input: string, options: AnalyseOptions = {}): Prom
       category: intent.category,
       recommended,
       alternatives,
-      factsUsed: displayFacts(intent),
+      factsUsed: displayFacts(intent, input),
       confidence,
       awaitingAnswer,
+      choice: awaitingAnswer ? buildChoice(intent.id, surviving, blocking) : null,
     })
   }
 
@@ -219,9 +225,84 @@ export async function analyse(input: string, options: AnalyseOptions = {}): Prom
     status,
     dataset: { key: info.key, kind: info.kind, name: info.name },
     aiAssisted,
+    evidence: {
+      source: input,
+      segments: buildHighlights(
+        input,
+        procedures.flatMap((p) =>
+          p.factsUsed
+            .filter((f) => f.spans.length > 0)
+            .map((f) => ({ factKey: `${p.intentId}:${f.factKey}`, spans: f.spans })),
+        ),
+      ),
+    },
   }
 
   return { result: await validateResult(result, repository), usage }
+}
+
+/**
+ * Builds the side-by-side view of what is still possible.
+ *
+ * Reads the actual attribute values off each surviving candidate, so the
+ * comparison shows the real difference between the codes rather than a
+ * restatement of the question.
+ */
+function buildChoice(
+  intentId: string,
+  surviving: CandidateScore[],
+  blockingFactKeys: string[],
+): CandidateChoice | null {
+  if (surviving.length < 2 || blockingFactKeys.length === 0) return null
+
+  // Attribute keys, grouped by the fact that would resolve them.
+  const attrKeysByFact = new Map<string, string[]>()
+  for (const [attrKey, factKey] of Object.entries(DISCRIMINATOR_TO_FACT)) {
+    if (!blockingFactKeys.includes(factKey)) continue
+    attrKeysByFact.set(factKey, [...(attrKeysByFact.get(factKey) ?? []), attrKey])
+  }
+
+  const factKeys = blockingFactKeys.filter((f) => attrKeysByFact.has(f))
+  if (factKeys.length === 0) return null
+
+  const candidates: CandidateComparison[] = surviving.slice(0, 6).map((scored, index) => {
+    const distinguishingValues: Record<string, string> = {}
+    for (const factKey of factKeys) {
+      const values: string[] = []
+      for (const attrKey of attrKeysByFact.get(factKey) ?? []) {
+        for (const value of scored.record.attributes.values(attrKey)) {
+          values.push(describeAttributeValue(attrKey, value))
+        }
+      }
+      distinguishingValues[factKey] = values.length > 0 ? [...new Set(values)].join(', ') : '—'
+    }
+    return {
+      code: scored.record.code,
+      shortLabel: scored.record.shortLabel,
+      distinguishingValues,
+      leading: index === 0,
+    }
+  })
+
+  const names = factKeys.map((f) => factLabel(f).toLowerCase()).join(' and ')
+  return {
+    intentId,
+    distinguishingFactKeys: factKeys,
+    candidates,
+    specificityNote: `Which code applies depends on ${names}. ${candidates.length} candidates shown.`,
+  }
+}
+
+/** Turns a raw attribute value into something a person reads comfortably. */
+function describeAttributeValue(attrKey: string, value: string): string {
+  if (attrKey === 'surface_count') {
+    return value === '4' ? 'four or more surfaces' : `${value} surface${value === '1' ? '' : 's'}`
+  }
+  if (attrKey === 'surface_count_min') return `${value}+ surfaces`
+  if (attrKey === 'teeth_per_quadrant_min') return `${value}+ teeth per quadrant`
+  if (attrKey === 'teeth_per_quadrant_max') return `up to ${value} teeth per quadrant`
+  if (attrKey === 'image_count') return `${value} image${value === '1' ? '' : 's'}`
+  return value.replace(/_/g, ' ')
 }
 
 // ---------------------------------------------------------------------------
@@ -330,35 +411,63 @@ function summariseIntent(intent: ProcedureIntent): string {
   return parts.join(' · ')
 }
 
-function displayFacts(intent: ProcedureIntent): DisplayFact[] {
+/**
+ * Builds the "Facts identified" rows, each carrying the span of the input it
+ * was read from.
+ *
+ * A fact is `derived` when it follows from another fact rather than being
+ * written down — #30 being posterior is a lookup, not something the note says
+ * — and derived facts deliberately carry no span. Showing a highlight for
+ * them would claim the user wrote something they did not.
+ */
+function displayFacts(intent: ProcedureIntent, source: string): DisplayFact[] {
   const facts: DisplayFact[] = []
-  const add = (label: string, value: string | null, source: 'stated' | 'derived' = 'stated') => {
-    if (value) facts.push({ label, value, source })
+
+  const add = (
+    label: string,
+    value: string | null,
+    factKey: string,
+    source_: 'stated' | 'derived' = 'stated',
+  ) => {
+    if (!value) return
+    const spans = source_ === 'derived' ? [] : reconcile(source, intent.evidence[factKey] ?? [])
+    const origin: DisplayFact['origin'] =
+      source_ === 'derived' ? 'derived' : spans.length > 0 ? (intent.quotedFacts?.includes(factKey) ? 'quoted' : 'matched') : 'unlocated'
+    facts.push({ label, value, source: source_, factKey, spans, origin })
   }
 
-  if (intent.procedureKind) add('Procedure', procedureLabel(intent.procedureKind))
-  if (intent.toothIds.length > 0) add('Tooth', formatTeeth(intent.toothIds))
+  if (intent.procedureKind) add('Procedure', procedureLabel(intent.procedureKind), 'procedure')
+  if (intent.toothIds.length > 0) add('Tooth', formatTeeth(intent.toothIds), 'tooth_numbers')
   if (intent.surfaces.length > 0) {
-    add('Surfaces', `${formatSurfaces(intent.surfaces)} — ${describeSurfaces(intent.surfaces)}`)
-    add('Surface count', String(intent.surfaceCount), 'derived')
+    add(
+      'Surfaces',
+      `${formatSurfaces(intent.surfaces)} — ${describeSurfaces(intent.surfaces)}`,
+      'surfaces',
+    )
+    add('Surface count', String(intent.surfaceCount), 'surfaces', 'derived')
   }
-  if (intent.materials.length > 0) add('Material', intent.materials.join(', '))
-  if (intent.toothRegion) add('Tooth position', intent.toothRegion.toLowerCase(), 'derived')
-  if (intent.dentition) add('Dentition', intent.dentition.toLowerCase(), 'derived')
-  if (intent.existingRestoration) add('Existing restoration', intent.existingRestoration)
+  if (intent.materials.length > 0) add('Material', intent.materials.join(', '), 'material')
+  if (intent.toothRegion) add('Tooth position', intent.toothRegion.toLowerCase(), 'tooth_numbers', 'derived')
+  if (intent.dentition) add('Dentition', intent.dentition.toLowerCase(), 'dentition', 'derived')
+  if (intent.existingRestoration) {
+    add('Existing restoration', intent.existingRestoration, 'existing_restoration')
+  }
   if (intent.restorationIntent) {
     add(
       'New or replacement',
       intent.restorationIntent === 'REPLACEMENT' ? 'replacement' : 'new restoration',
+      'restoration_intent',
     )
   }
-  if (intent.clinicalReasons.length > 0) add('Reason for treatment', intent.clinicalReasons.join(', '))
-  if (intent.imageCount !== null) add('Images', String(intent.imageCount))
-  if (intent.quadrants.length > 0) add('Quadrant', intent.quadrants.join(', '), 'derived')
-  if (intent.arches.length > 0) add('Arch', intent.arches.join(', ').toLowerCase(), 'derived')
-  if (intent.ageBand) add('Dentition age band', intent.ageBand.toLowerCase())
+  if (intent.clinicalReasons.length > 0) {
+    add('Reason for treatment', intent.clinicalReasons.join(', '), 'clinical_reasons')
+  }
+  if (intent.imageCount !== null) add('Images', String(intent.imageCount), 'image_count')
+  if (intent.quadrants.length > 0) add('Quadrant', intent.quadrants.join(', '), 'quadrants', 'derived')
+  if (intent.arches.length > 0) add('Arch', intent.arches.join(', ').toLowerCase(), 'arch', 'derived')
+  if (intent.ageBand) add('Dentition age band', intent.ageBand.toLowerCase(), 'age_band')
   for (const [key, value] of Object.entries(intent.attributes)) {
-    add(key.replace(/_/g, ' '), value)
+    add(key.replace(/_/g, ' '), value, key)
   }
   return facts
 }
@@ -410,7 +519,9 @@ function buildReasoningSummary(
     }
   }
 
-  if (followUps.length > 0) {
+  // Only worth saying when it is not already obvious from the lines above:
+  // with a single procedure, the per-procedure line has said it.
+  if (followUps.length > 1 || procedures.length > 1) {
     lines.push(
       followUps.length === 1
         ? 'One detail is needed before a code can be confirmed.'

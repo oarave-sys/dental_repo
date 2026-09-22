@@ -75,6 +75,11 @@ function normaliseLetter(ch: string): Surface | null {
   }
 }
 
+export interface SurfaceMention {
+  start: number
+  end: number
+}
+
 export interface SurfaceExtraction {
   surfaces: Surface[]
   /** Number of distinct surfaces documented. */
@@ -83,17 +88,24 @@ export interface SurfaceExtraction {
   fromShorthand: boolean
   /** Tokens that looked like surfaces but were rejected. */
   rejected: string[]
+  /** Where the surfaces were written, for tracing back to the source. */
+  mentions: SurfaceMention[]
 }
 
 export function extractSurfaces(text: string): SurfaceExtraction {
   const set = new Set<Surface>()
   const rejected: string[] = []
+  const mentions: SurfaceMention[] = []
   let fromShorthand = false
 
   // Spelled-out surface names are unambiguous; take them first.
   const lower = text.toLowerCase()
   for (const [pattern, surface] of WORD_TO_SURFACE) {
-    if (new RegExp(pattern.source, 'g').test(lower)) set.add(surface)
+    const re = new RegExp(pattern.source, 'gi')
+    for (const m of lower.matchAll(re)) {
+      set.add(surface)
+      if (m.index !== undefined) mentions.push({ start: m.index, end: m.index + m[0].length })
+    }
   }
 
   // Shorthand runs: an uppercase token made only of surface letters. Requiring
@@ -116,10 +128,17 @@ export function extractSurfaces(text: string): SurfaceExtraction {
     if (letters.some((l) => l === null)) continue
     for (const l of letters) if (l) set.add(l)
     fromShorthand = true
+    if (m.index !== undefined) mentions.push({ start: m.index, end: m.index + token.length })
   }
 
   const surfaces = [...set].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b))
-  return { surfaces, count: surfaces.length, fromShorthand, rejected: [...new Set(rejected)] }
+  return {
+    surfaces,
+    count: surfaces.length,
+    fromShorthand,
+    rejected: [...new Set(rejected)],
+    mentions,
+  }
 }
 
 /** Parses a user's answer to "which surfaces?" — more permissive than free text. */

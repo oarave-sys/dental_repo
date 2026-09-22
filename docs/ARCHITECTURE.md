@@ -80,6 +80,12 @@ engine asking a crown which surfaces were restored.
 **Confidence.** `HIGH` requires one surviving candidate with nothing open, or a
 clear scoring gap with nothing open. Anything less says so.
 
+**Showing the choice.** While candidates remain, they are rendered side by side
+with the attribute values that separate them, read off the codes themselves,
+plus a note naming what the choice depends on. The targeted question stays as
+well: someone who knows the distinction reads the answer off the table, while
+someone who does not is told exactly what to supply.
+
 ### Deterministic work the model is not trusted with
 
 - Tooth validation: permanent 1–32, primary A–T, with anterior/posterior,
@@ -92,6 +98,28 @@ clear scoring gap with nothing open. Anything less says so.
 - Distinguishing a restoration being removed from one being placed. "Existing
   MOD amalgam was removed. MOD composite placed." is two restorations and one
   procedure — and it is the phrasing dental notes use most.
+
+## Evidence: tracing a fact to its source
+
+Every fact carries the character span of the input it was read from, so a
+coder can check the engine's reading rather than take it on trust.
+
+| Origin | Meaning | Highlighted |
+| --- | --- | --- |
+| `matched` | a rule matched this span directly | yes |
+| `quoted` | the model quoted text and we located the quote | yes |
+| `derived` | follows from another fact (#30 is posterior) | no — nobody wrote it |
+| `unlocated` | the model supplied it but its quote was not found | no |
+
+Two rules keep the highlights honest. Model-supplied facts are located by
+searching for the text the model *quoted*, never by trusting an offset it
+returned — an invented offset would highlight the wrong words with complete
+confidence. And derived facts get no span at all, because marking one would
+claim the user wrote something they did not.
+
+`buildHighlights` emits a flat list of runs rather than nested markup, so a
+span claimed by two facts (the tooth and the procedure frequently overlap)
+renders once and is attributed to both.
 
 ## The reference-data layer
 

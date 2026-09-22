@@ -158,7 +158,27 @@ of it is believed.
 `src/lib/usage` records token counts, latency, cost and success for each
 request. It records no content.
 
-## 6. The admin area
+## 6. The audit log
+
+`audit_events` records who accessed clinical content and who changed the
+account, and is **append-only in the database**: the policy grants `INSERT`
+and `SELECT` and grants no `UPDATE` or `DELETE`, so PostgreSQL refuses both
+even for the application role. An audit log the application can rewrite is
+worth nothing during the incident it exists for. An integration test inserts an
+entry, attempts to change and delete it, and asserts the original survives.
+
+Entries hold no clinical text. `subjectId` points at the row that was touched,
+so an investigator can follow the reference while the content stays where it
+already lives under its own access control. Opening a colleague's search is
+itself recorded.
+
+One deliberate weakness, recorded rather than hidden: a failed audit write is
+logged and swallowed rather than failing the request. For a product holding no
+PHI, refusing to show a result because the audit write failed is the worse
+trade. **This must be revisited before PHI handling is enabled** — an auditable
+system generally has to fail closed. Retention is also currently unbounded.
+
+## 7. The admin area
 
 Reads across every tenant by necessity, and is confined to
 `src/lib/admin/metrics.ts`, gated on `isPlatformAdmin`. Every query in it is an
@@ -167,7 +187,7 @@ Nothing selects `inputText`, note content, a result payload or a saved case's
 notes. The return shapes have nowhere to put clinical content, so a careless
 future addition cannot leak it either.
 
-## 7. Not HIPAA compliant
+## 8. Not HIPAA compliant
 
 Stated plainly because the opposite is commonly implied. Technical safeguards
 are necessary and not remotely sufficient: compliance also requires business
