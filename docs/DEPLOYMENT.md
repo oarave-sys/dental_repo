@@ -42,7 +42,20 @@ distinction.
 
 The security model assumes the application connects as a role that is **not** a
 superuser and does **not** hold `BYPASSRLS`. On a managed provider you often
-get one superuser-ish role by default, so create a second:
+get one superuser-ish role by default, so create a second.
+
+**This is confirmed on Supabase, not merely a precaution.** On a live project:
+
+```
+ rolname  | rolsuper | rolbypassrls
+----------+----------+--------------
+ postgres | f        | t
+```
+
+The connection string Supabase hands you by default connects as `postgres`,
+which holds `BYPASSRLS` — so every policy in this schema would be skipped and
+tenant isolation would rest on the application layer alone. Create the app
+role:
 
 ```sql
 CREATE ROLE dental_app LOGIN PASSWORD '<strong password>';
